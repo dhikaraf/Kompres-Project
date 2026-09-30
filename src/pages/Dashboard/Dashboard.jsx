@@ -5,6 +5,7 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import Card from '../../components/common/Card';
 import FoodCard from '../../components/dashboard/FoodCard';
 import WorkoutCard from '../../components/dashboard/WorkoutCard';
+import AiWorkoutRecommendation from '../../components/dashboard/AiWorkoutRecommendation';
 import ScheduleCard from '../../components/dashboard/ScheduleCard';
 import StreakCard from '../../components/dashboard/StreakCard';
 import CalorieCard from '../../components/dashboard/CalorieCard';
@@ -37,6 +38,7 @@ export default function Dashboard() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
   const [showAllFoods, setShowAllFoods] = useState(false);
   const [showAllWorkouts, setShowAllWorkouts] = useState(false);
 
@@ -58,10 +60,13 @@ export default function Dashboard() {
 
         setDashboardData(dashboard);
 
+        /*
+         * 2. Ambil profile dari dashboard
+         */
         const profile = dashboard?.profile;
 
         /*
-         * 2. Ambil rekomendasi nutrisi AI
+         * 3. Ambil rekomendasi nutrisi AI
          */
         if (profile) {
           const mealResponse = await recommendMeal({
@@ -71,13 +76,18 @@ export default function Dashboard() {
             gender: profile.gender,
             fitness_goal: profile.fitnessGoal,
             fitness_level: profile.fitnessLevel,
+
+            /*
+             * Sementara menggunakan intensitas high
+             * karena frontend belum memiliki input intensitas latihan.
+             */
             workout_intensity: 'high',
           });
 
           setNutritionData(mealResponse?.data || null);
 
           /*
-           * 3. Ambil rekomendasi latihan AI
+           * 4. Ambil rekomendasi latihan AI
            */
           const workoutResponse = await recommendWorkout({
             fitness_level: profile.fitnessLevel,
@@ -159,16 +169,16 @@ export default function Dashboard() {
    * Rekomendasi latihan AI
    *
    * Backend memberikan:
-   * name
-   * sets
-   * reps
-   * restSec
+   * - name
+   * - sets
+   * - reps
+   * - restSec
    *
    * WorkoutCard menggunakan:
-   * name
-   * sets
-   * reps
-   * rest
+   * - name
+   * - sets
+   * - reps
+   * - rest
    */
   const workoutRecommendations =
     workoutData?.exercises?.map((exercise, index) => ({
@@ -262,7 +272,7 @@ export default function Dashboard() {
                 Rencana Nutrisi AI
               </h2>
 
-              <span className='rounded-full bg-gray-100 px-3 py-1 font-body text-body-sm font-medium text-text'>
+              <span className='rounded-full bg-background px-3 py-1 font-body text-body-sm font-medium text-text'>
                 Level: {fitnessLevel}
               </span>
             </div>
@@ -319,9 +329,10 @@ export default function Dashboard() {
         </section>
 
         {/* =====================================================
-    SECTION 2
-    JADWAL + STREAK
-    ===================================================== */}
+            SECTION 2
+            JADWAL + STREAK
+            ===================================================== */}
+
         <section className='mt-10 grid grid-cols-1 gap-5 md:grid-cols-2'>
           <ScheduleCard schedules={dashboardData?.todaySchedules || []} />
 
@@ -329,23 +340,34 @@ export default function Dashboard() {
         </section>
 
         {/* =====================================================
-          SECTION 3
-          TRACKING KALORI
-          ===================================================== */}
+            SECTION 3
+            TRACKING KALORI
+            ===================================================== */}
+
         <section className='mt-5'>
           <CalorieCard calories={dashboardData?.todayCalories} />
         </section>
 
         {/* =====================================================
-          SECTION 4
-          RINCIAN NUTRISI
-          ===================================================== */}
+            SECTION 4
+            RINCIAN NUTRISI
+            ===================================================== */}
+
         <section className='mt-10'>
           <NutritionSummaryCard nutrition={nutritionData} />
         </section>
 
         {/* =====================================================
-            SECTION 2
+            SECTION 5
+            AI WORKOUT RECOMMENDATION DENGAN INPUT USER
+            ===================================================== */}
+
+        <section className='mt-10'>
+          <AiWorkoutRecommendation />
+        </section>
+
+        {/* =====================================================
+            SECTION 6
             FOOD RECOMMENDATION
             ===================================================== */}
 
@@ -399,7 +421,7 @@ export default function Dashboard() {
         </section>
 
         {/* =====================================================
-            SECTION 3
+            SECTION 7
             WORKOUT RECOMMENDATION
             ===================================================== */}
 
@@ -461,9 +483,10 @@ export default function Dashboard() {
           )}
         </section>
       </div>
+
       {/* =====================================================
-    MODAL DETAIL MAKANAN
-    ===================================================== */}
+          MODAL DETAIL MAKANAN
+          ===================================================== */}
 
       {selectedFood && (
         <div
@@ -476,12 +499,6 @@ export default function Dashboard() {
             className='max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-surface shadow-xl'
             onClick={(event) => event.stopPropagation()}
           >
-            <img
-              src={selectedFood.image}
-              alt={selectedFood.name}
-              className='h-52 w-full object-cover'
-            />
-
             <div className='p-6'>
               <div className='flex items-start justify-between gap-4'>
                 <div>
@@ -504,35 +521,19 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              <div className='mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4'>
+              <div className='mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3'>
+                {/* Ukuran Porsi */}
                 <div className='rounded-lg bg-primary px-3 py-3 text-white'>
                   <p className='font-body text-body-sm font-semibold'>
-                    Protein
+                    Ukuran Porsi
                   </p>
 
                   <p className='mt-1 font-body text-body-sm'>
-                    {selectedFood.protein}g
+                    {selectedFood.servingSize ?? '—'} g
                   </p>
                 </div>
 
-                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
-                  <p className='font-body text-body-sm font-semibold'>
-                    Karbohidrat
-                  </p>
-
-                  <p className='mt-1 font-body text-body-sm'>
-                    {selectedFood.carbs}g
-                  </p>
-                </div>
-
-                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
-                  <p className='font-body text-body-sm font-semibold'>Lemak</p>
-
-                  <p className='mt-1 font-body text-body-sm'>
-                    {selectedFood.fat}g
-                  </p>
-                </div>
-
+                {/* Kalori */}
                 <div className='rounded-lg bg-accent px-3 py-3 text-white'>
                   <p className='font-body text-body-sm font-semibold'>Kalori</p>
 
@@ -540,6 +541,56 @@ export default function Dashboard() {
                     {selectedFood.calories ?? '—'} Kkal
                   </p>
                 </div>
+
+                {/* Protein */}
+                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>
+                    Protein
+                  </p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedFood.protein ?? '—'} g
+                  </p>
+                </div>
+
+                {/* Karbohidrat */}
+                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>
+                    Karbohidrat
+                  </p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedFood.carbs ?? '—'} g
+                  </p>
+                </div>
+
+                {/* Lemak */}
+                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>Lemak</p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedFood.fat ?? '—'} g
+                  </p>
+                </div>
+
+                {/* Gula */}
+                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>Gula</p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedFood.sugar ?? '—'} g
+                  </p>
+                </div>
+              </div>
+
+              {/* Serat */}
+              <div className='mt-4 rounded-lg bg-background p-4'>
+                <p className='font-body text-body-sm text-text'>
+                  Serat:{' '}
+                  <span className='font-semibold'>
+                    {selectedFood.fiber ?? '—'} g
+                  </span>
+                </p>
               </div>
 
               <button
@@ -555,8 +606,8 @@ export default function Dashboard() {
       )}
 
       {/* =====================================================
-    MODAL DETAIL LATIHAN
-    ===================================================== */}
+          MODAL DETAIL LATIHAN
+          ===================================================== */}
 
       {selectedWorkout && (
         <div
@@ -600,50 +651,59 @@ export default function Dashboard() {
               <div className='mt-5 space-y-2 font-body text-body-sm text-text'>
                 <p>
                   Program:{' '}
-                  <span className='font-semibold'>{selectedWorkout.title}</span>
+                  <span className='font-semibold'>
+                    {selectedWorkout.title || '—'}
+                  </span>
                 </p>
 
                 <p>
                   Fokus otot:{' '}
                   <span className='font-semibold'>
-                    {selectedWorkout.focusMuscle}
+                    {selectedWorkout.focusMuscle || '—'}
                   </span>
                 </p>
 
                 <p>
                   Durasi:{' '}
                   <span className='font-semibold'>
-                    {selectedWorkout.durationMinutes} menit
+                    {selectedWorkout.durationMinutes != null
+                      ? `${selectedWorkout.durationMinutes} menit`
+                      : '—'}
                   </span>
                 </p>
               </div>
 
               <div className='mt-6 grid grid-cols-3 gap-3'>
+                {/* Set */}
                 <div className='rounded-lg bg-primary px-3 py-3 text-white'>
                   <p className='font-body text-body-sm font-semibold'>Set</p>
 
                   <p className='mt-1 font-body text-body-sm'>
-                    {selectedWorkout.sets}
+                    {selectedWorkout.sets ?? '—'}
                   </p>
                 </div>
 
+                {/* Repetisi */}
                 <div className='rounded-lg bg-accent px-3 py-3 text-white'>
                   <p className='font-body text-body-sm font-semibold'>
                     Repetisi
                   </p>
 
                   <p className='mt-1 font-body text-body-sm'>
-                    {selectedWorkout.reps}
+                    {selectedWorkout.reps ?? '—'}
                   </p>
                 </div>
 
+                {/* Istirahat */}
                 <div className='rounded-lg bg-accent px-3 py-3 text-white'>
                   <p className='font-body text-body-sm font-semibold'>
                     Istirahat
                   </p>
 
                   <p className='mt-1 font-body text-body-sm'>
-                    {selectedWorkout.rest} detik
+                    {selectedWorkout.rest != null
+                      ? `${selectedWorkout.rest} detik`
+                      : '—'}
                   </p>
                 </div>
               </div>

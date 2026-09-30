@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+
 import { useUser } from '../../context/UserContext';
 
 export default function Navbar({ variant = 'landing' }) {
@@ -33,18 +34,44 @@ export default function Navbar({ variant = 'landing' }) {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className='hidden items-center gap-8 md:flex'>
+          <div className='hidden items-center gap-6 md:flex'>
             {isDashboard ? (
               <>
                 <Link
                   to='/dashboard'
+                  onClick={handleMenuClick}
                   className='font-body text-body-sm font-medium text-text transition hover:text-primary'
                 >
                   Beranda
                 </Link>
 
                 <Link
+                  to='/schedule'
+                  onClick={handleMenuClick}
+                  className='font-body text-body-sm font-medium text-text transition hover:text-primary'
+                >
+                  Jadwal
+                </Link>
+
+                <Link
+                  to='/nutrition'
+                  onClick={handleMenuClick}
+                  className='font-body text-body-sm font-medium text-text transition hover:text-primary'
+                >
+                  Nutrisi
+                </Link>
+
+                <Link
+                  to='/workout-plan'
+                  onClick={handleMenuClick}
+                  className='font-body text-body-sm font-medium text-text transition hover:text-primary'
+                >
+                  Workout Plan
+                </Link>
+
+                <Link
                   to='/history'
+                  onClick={handleMenuClick}
                   className='font-body text-body-sm font-medium text-text transition hover:text-primary'
                 >
                   Riwayat
@@ -52,6 +79,7 @@ export default function Navbar({ variant = 'landing' }) {
 
                 <Link
                   to='/profile'
+                  onClick={handleMenuClick}
                   className='font-body text-body-sm font-medium text-text transition hover:text-primary'
                 >
                   Profil
@@ -134,7 +162,7 @@ export default function Navbar({ variant = 'landing' }) {
         {/* Mobile Navigation */}
         <div
           className={`overflow-hidden transition-all duration-300 md:hidden ${
-            isMenuOpen ? 'max-h-96 pb-5 opacity-100' : 'max-h-0 opacity-0'
+            isMenuOpen ? 'max-h-[600px] pb-5 opacity-100' : 'max-h-0 opacity-0'
           }`}
         >
           <div className='flex flex-col gap-3 border-t border-gray-100 pt-4'>
@@ -146,6 +174,30 @@ export default function Navbar({ variant = 'landing' }) {
                   className='rounded-lg px-3 py-2 font-body text-body-sm font-medium text-text transition hover:bg-background hover:text-primary'
                 >
                   Beranda
+                </Link>
+
+                <Link
+                  to='/schedule'
+                  onClick={handleMenuClick}
+                  className='rounded-lg px-3 py-2 font-body text-body-sm font-medium text-text transition hover:bg-background hover:text-primary'
+                >
+                  Jadwal
+                </Link>
+
+                <Link
+                  to='/nutrition'
+                  onClick={handleMenuClick}
+                  className='rounded-lg px-3 py-2 font-body text-body-sm font-medium text-text transition hover:bg-background hover:text-primary'
+                >
+                  Nutrisi
+                </Link>
+
+                <Link
+                  to='/workout-plan'
+                  onClick={handleMenuClick}
+                  className='rounded-lg px-3 py-2 font-body text-body-sm font-medium text-text transition hover:bg-background hover:text-primary'
+                >
+                  Workout Plan
                 </Link>
 
                 <Link
