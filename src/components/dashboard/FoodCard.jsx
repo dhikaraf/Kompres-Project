@@ -2,42 +2,31 @@ import Card from '../common/Card';
 
 export default function FoodCard({ food, onMore }) {
   return (
-    <Card className='flex h-[405px] w-[270px] shrink-0 flex-col overflow-hidden sm:w-[280px]'>
-      <div className='h-[145px] w-full shrink-0 overflow-hidden'>
-        <img
-          src={food.image}
-          alt={food.name}
-          className='h-full w-full object-cover'
-        />
-      </div>
-
-      <div className='flex flex-1 flex-col p-4'>
-        <p className='min-h-[20px] font-body text-body-sm font-semibold text-text'>
+    <Card className='flex h-[330px] w-[270px] shrink-0 flex-col overflow-hidden sm:w-[280px]'>
+      <div className='flex flex-1 flex-col p-5'>
+        <p className='font-body text-body-sm font-semibold text-primary'>
           {food.category}
         </p>
 
-        <h3 className='mt-2 h-[58px] overflow-hidden font-heading text-heading-lg font-semibold leading-tight text-text'>
+        <h3 className='mt-2 min-h-[58px] overflow-hidden font-heading text-heading-lg font-semibold leading-tight text-text'>
           {food.name}
         </h3>
 
-        <div className='mt-4 grid min-h-[44px] grid-cols-3 gap-2 font-body text-[13px] leading-snug text-text'>
-          <span>
-            Protein:
-            <br />
-            {food.protein}g
-          </span>
+        <div className='mt-6 grid grid-cols-3 gap-3 font-body text-[13px] text-text'>
+          <div>
+            <p>Protein</p>
+            <p className='mt-1 font-semibold'>{food.protein}g</p>
+          </div>
 
-          <span>
-            Karbo:
-            <br />
-            {food.carbs}g
-          </span>
+          <div>
+            <p>Karbo</p>
+            <p className='mt-1 font-semibold'>{food.carbs}g</p>
+          </div>
 
-          <span>
-            Lemak:
-            <br />
-            {food.fat}g
-          </span>
+          <div>
+            <p>Lemak</p>
+            <p className='mt-1 font-semibold'>{food.fat}g</p>
+          </div>
         </div>
 
         <button

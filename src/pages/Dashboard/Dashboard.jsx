@@ -1,174 +1,236 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useUser } from '../../context/UserContext';
-
+import api, { recommendMeal, recommendWorkout } from '../../services/api';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import Card from '../../components/common/Card';
 import FoodCard from '../../components/dashboard/FoodCard';
 import WorkoutCard from '../../components/dashboard/WorkoutCard';
-
-const nutritionPlan = {
-  level: 'Mudah',
-  calories: 2400,
-  protein: 90,
-  carbs: 120,
-  fat: 80,
-};
-
-const foodRecommendations = [
-  {
-    id: 1,
-    category: 'Tinggi Protein',
-    name: 'Salmon Panggang & Sayuran',
-    protein: 45,
-    carbs: 72,
-    fat: 20,
-    image:
-      'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 2,
-    category: 'Seimbang',
-    name: 'Ayam Panggang & Salad',
-    protein: 42,
-    carbs: 55,
-    fat: 16,
-    image:
-      'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 3,
-    category: 'Tinggi Protein',
-    name: 'Bowl Ayam & Alpukat',
-    protein: 48,
-    carbs: 64,
-    fat: 22,
-    image:
-      'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 4,
-    category: 'Sehat',
-    name: 'Bowl Sayuran & Telur',
-    protein: 28,
-    carbs: 58,
-    fat: 18,
-    image:
-      'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 5,
-    category: 'Tinggi Protein',
-    name: 'Tuna Panggang & Sayuran',
-    protein: 46,
-    carbs: 48,
-    fat: 14,
-    image:
-      'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 6,
-    category: 'Seimbang',
-    name: 'Nasi Ayam & Sayuran',
-    protein: 38,
-    carbs: 76,
-    fat: 15,
-    image:
-      'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80',
-  },
-];
-
-const workoutRecommendations = [
-  {
-    id: 1,
-    level: 'Mudah',
-    name: 'Bench Press',
-    sets: 3,
-    reps: 8,
-    rest: 90,
-    recommendedWeight: 10,
-    image:
-      'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 2,
-    level: 'Mudah',
-    name: 'Squat',
-    sets: 3,
-    reps: 10,
-    rest: 90,
-    recommendedWeight: 15,
-    image:
-      'https://images.unsplash.com/photo-1574680178050-55c6a6a96e0a?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 3,
-    level: 'Sedang',
-    name: 'Shoulder Press',
-    sets: 3,
-    reps: 10,
-    rest: 60,
-    recommendedWeight: 8,
-    image:
-      'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 4,
-    level: 'Sedang',
-    name: 'Lat Pulldown',
-    sets: 3,
-    reps: 12,
-    rest: 60,
-    recommendedWeight: 20,
-    image:
-      'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 5,
-    level: 'Mudah',
-    name: 'Bicep Curl',
-    sets: 3,
-    reps: 12,
-    rest: 60,
-    recommendedWeight: 6,
-    image:
-      'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 6,
-    level: 'Sedang',
-    name: 'Leg Press',
-    sets: 4,
-    reps: 10,
-    rest: 90,
-    recommendedWeight: 40,
-    image:
-      'https://images.unsplash.com/photo-1574680096145-d05b474e2155?auto=format&fit=crop&w=800&q=80',
-  },
-];
+import ScheduleCard from '../../components/dashboard/ScheduleCard';
+import StreakCard from '../../components/dashboard/StreakCard';
+import CalorieCard from '../../components/dashboard/CalorieCard';
+import NutritionSummaryCard from '../../components/dashboard/NutritionSummaryCard';
 
 const goalLabels = {
-  'lose-weight': 'menurunkan berat badan',
-  'gain-weight': 'menambah berat badan',
-  'stay-healthy': 'menjaga kesehatan',
+  lose: 'menurunkan berat badan',
+  gain: 'menambah berat badan',
+  healthy: 'menjaga kesehatan',
 };
+
+const fitnessLevelLabels = {
+  easy: 'Mudah',
+  medium: 'Sedang',
+  intermediate: 'Menengah',
+};
+
+const workoutImages = [
+  'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1574680178050-55c6a6a96e0a?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?auto=format&fit=crop&w=800&q=80',
+];
 
 export default function Dashboard() {
   const { user } = useUser();
 
+  const [dashboardData, setDashboardData] = useState(null);
+  const [nutritionData, setNutritionData] = useState(null);
+  const [workoutData, setWorkoutData] = useState(null);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showAllFoods, setShowAllFoods] = useState(false);
   const [showAllWorkouts, setShowAllWorkouts] = useState(false);
 
-  const username = user?.username || 'Pengguna';
+  const [selectedFood, setSelectedFood] = useState(null);
+  const [selectedWorkout, setSelectedWorkout] = useState(null);
 
-  const goal = goalLabels[user?.goal] || 'mencapai tujuan kebugaran';
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError('');
 
+        /*
+         * 1. Ambil data dashboard user
+         */
+        const dashboardResponse = await api.get('/dashboard');
+
+        const dashboard = dashboardResponse.data?.data || null;
+
+        setDashboardData(dashboard);
+
+        const profile = dashboard?.profile;
+
+        /*
+         * 2. Ambil rekomendasi nutrisi AI
+         */
+        if (profile) {
+          const mealResponse = await recommendMeal({
+            weight: Number(profile.weight),
+            height: Number(profile.height),
+            age: Number(profile.age),
+            gender: profile.gender,
+            fitness_goal: profile.fitnessGoal,
+            fitness_level: profile.fitnessLevel,
+            workout_intensity: 'high',
+          });
+
+          setNutritionData(mealResponse?.data || null);
+
+          /*
+           * 3. Ambil rekomendasi latihan AI
+           */
+          const workoutResponse = await recommendWorkout({
+            fitness_level: profile.fitnessLevel,
+            fitness_goal: profile.fitnessGoal,
+            last_workout_focus: '',
+            target_date: new Date().toISOString().split('T')[0],
+          });
+
+          setWorkoutData(workoutResponse?.data || null);
+        }
+      } catch (requestError) {
+        console.error('Gagal mengambil data dashboard:', requestError);
+
+        setError(
+          requestError.response?.data?.message ||
+            'Data dashboard gagal dimuat.',
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  /*
+   * Data dashboard
+   */
+  const dashboardUser = dashboardData?.user;
+
+  const profile = dashboardData?.profile;
+
+  /*
+   * Greeting
+   */
+  const username =
+    dashboardUser?.name || user?.name || user?.username || 'Pengguna';
+
+  /*
+   * Goal
+   */
+  const goal = goalLabels[profile?.fitnessGoal] || 'mencapai tujuan kebugaran';
+
+  /*
+   * Fitness level
+   */
+  const fitnessLevel =
+    fitnessLevelLabels[profile?.fitnessLevel] || 'Belum ditentukan';
+
+  /*
+   * Data nutrisi AI
+   */
+  const targetCalories = nutritionData?.targetCalories;
+
+  const protein = nutritionData?.macroDistribution?.proteinG;
+
+  const carbs = nutritionData?.macroDistribution?.carbsG;
+
+  const fat = nutritionData?.macroDistribution?.fatG;
+
+  /*
+   * Rekomendasi makanan AI
+   */
+  const foodRecommendations =
+    nutritionData?.recommendedFoods?.map((food) => ({
+      id: food.id,
+      category: food.category,
+      name: food.name,
+      servingSize: Number(food.servingSizeG),
+      calories: Number(food.calories),
+      protein: Number(food.proteinG),
+      carbs: Number(food.carbsG),
+      fat: Number(food.fatG),
+      sugar: Number(food.sugarG),
+      fiber: Number(food.fiberG),
+    })) || [];
+
+  /*
+   * Rekomendasi latihan AI
+   *
+   * Backend memberikan:
+   * name
+   * sets
+   * reps
+   * restSec
+   *
+   * WorkoutCard menggunakan:
+   * name
+   * sets
+   * reps
+   * rest
+   */
+  const workoutRecommendations =
+    workoutData?.exercises?.map((exercise, index) => ({
+      id: `${workoutData.title}-${index}`,
+      level: fitnessLevelLabels[workoutData.fitnessLevel] || 'Belum ditentukan',
+      name: exercise.name,
+      sets: exercise.sets,
+      reps: exercise.reps,
+      rest: exercise.restSec,
+      recommendedWeight: null,
+      image: workoutImages[index % workoutImages.length],
+
+      title: workoutData.title,
+      focusMuscle: workoutData.focusMuscle,
+      durationMinutes: workoutData.durationMinutes,
+      aiNotes: workoutData.aiNotes,
+    })) || [];
+
+  /*
+   * Tombol Selengkapnya
+   */
   const handleMoreFood = (food) => {
-    console.log('Makanan yang dipilih:', food);
+    setSelectedFood(food);
   };
 
   const handleMoreWorkout = (workout) => {
-    console.log('Latihan yang dipilih:', workout);
+    setSelectedWorkout(workout);
   };
+
+  /*
+   * Loading
+   */
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className='mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-7'>
+          <Card className='flex min-h-[300px] items-center justify-center'>
+            <p className='font-body text-body text-text'>Memuat dashboard...</p>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  /*
+   * Error
+   */
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className='mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-7'>
+          <Card className='px-6 py-8 text-center'>
+            <h1 className='font-heading text-heading-lg font-bold text-text'>
+              Dashboard tidak dapat dimuat
+            </h1>
+
+            <p className='mt-3 font-body text-body-sm text-text'>{error}</p>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -177,6 +239,7 @@ export default function Dashboard() {
             SECTION 1
             GREETING + AI NUTRITION PLAN
             ===================================================== */}
+
         <section className='grid grid-cols-1 items-center gap-8 lg:grid-cols-[1.05fr_0.95fr]'>
           {/* Greeting */}
           <div className='px-0 py-4 lg:px-8'>
@@ -200,20 +263,22 @@ export default function Dashboard() {
               </h2>
 
               <span className='rounded-full bg-gray-100 px-3 py-1 font-body text-body-sm font-medium text-text'>
-                Level: {nutritionPlan.level}
+                Level: {fitnessLevel}
               </span>
             </div>
 
             <p className='mt-2 font-body text-body-sm leading-relaxed text-text sm:text-body'>
-              Pembagian kebutuhan nutrisi berdasarkan aktivitas dan beban
-              latihan Anda.
+              Pembagian kebutuhan nutrisi berdasarkan profil dan target
+              kebugaran Anda.
             </p>
 
             <div className='mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4'>
               {/* Kalori */}
               <div className='col-span-2 flex items-center rounded-lg bg-primary px-4 py-4 sm:col-span-1 sm:flex-col sm:items-start sm:justify-center'>
                 <span className='font-heading text-3xl font-bold text-white'>
-                  {nutritionPlan.calories.toLocaleString('id-ID')}
+                  {targetCalories != null
+                    ? Number(targetCalories).toLocaleString('id-ID')
+                    : '—'}
                 </span>
 
                 <span className='ml-2 font-body text-body-sm text-white sm:ml-0 sm:mt-1'>
@@ -226,7 +291,7 @@ export default function Dashboard() {
                 <p className='font-body text-body-sm font-semibold'>Protein</p>
 
                 <p className='mt-1 font-body text-body-sm'>
-                  {nutritionPlan.protein}g / Hari
+                  {protein != null ? `${protein}g / Hari` : '—'}
                 </p>
               </div>
 
@@ -237,7 +302,7 @@ export default function Dashboard() {
                 </p>
 
                 <p className='mt-1 font-body text-body-sm'>
-                  {nutritionPlan.carbs}g / Hari
+                  {carbs != null ? `${carbs}g / Hari` : '—'}
                 </p>
               </div>
 
@@ -246,7 +311,7 @@ export default function Dashboard() {
                 <p className='font-body text-body-sm font-semibold'>Lemak</p>
 
                 <p className='mt-1 font-body text-body-sm'>
-                  {nutritionPlan.fat}g / Hari
+                  {fat != null ? `${fat}g / Hari` : '—'}
                 </p>
               </div>
             </div>
@@ -254,11 +319,37 @@ export default function Dashboard() {
         </section>
 
         {/* =====================================================
+    SECTION 2
+    JADWAL + STREAK
+    ===================================================== */}
+        <section className='mt-10 grid grid-cols-1 gap-5 md:grid-cols-2'>
+          <ScheduleCard schedules={dashboardData?.todaySchedules || []} />
+
+          <StreakCard streak={dashboardData?.streak} />
+        </section>
+
+        {/* =====================================================
+          SECTION 3
+          TRACKING KALORI
+          ===================================================== */}
+        <section className='mt-5'>
+          <CalorieCard calories={dashboardData?.todayCalories} />
+        </section>
+
+        {/* =====================================================
+          SECTION 4
+          RINCIAN NUTRISI
+          ===================================================== */}
+        <section className='mt-10'>
+          <NutritionSummaryCard nutrition={nutritionData} />
+        </section>
+
+        {/* =====================================================
             SECTION 2
-            AI FOOD RECOMMENDATION
+            FOOD RECOMMENDATION
             ===================================================== */}
+
         <section className='mt-16'>
-          {/* Judul */}
           <div>
             <h2 className='font-heading text-heading-lg font-bold text-text'>
               Rekomendasi Makanan AI
@@ -270,7 +361,6 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Tombol Lihat Semua */}
           <div className='mt-4 flex justify-end'>
             <button
               type='button'
@@ -285,8 +375,13 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Card makanan */}
-          {!showAllFoods ? (
+          {foodRecommendations.length === 0 ? (
+            <Card className='mt-5 px-6 py-8 text-center'>
+              <p className='font-body text-body-sm text-text'>
+                Belum ada rekomendasi makanan untuk ditampilkan.
+              </p>
+            </Card>
+          ) : !showAllFoods ? (
             <div className='mt-5 overflow-x-auto pb-4'>
               <div className='flex w-max gap-5'>
                 {foodRecommendations.map((food) => (
@@ -305,22 +400,22 @@ export default function Dashboard() {
 
         {/* =====================================================
             SECTION 3
-            AI WORKOUT RECOMMENDATION
+            WORKOUT RECOMMENDATION
             ===================================================== */}
+
         <section className='mt-16'>
-          {/* Judul */}
           <div>
             <h2 className='font-heading text-heading-lg font-bold text-text'>
               Rekomendasi Latihan AI
             </h2>
 
             <p className='mt-2 max-w-3xl font-body text-body-sm leading-relaxed text-text sm:text-body'>
-              Semua rekomendasi latihan yang disesuaikan dengan profil dan
-              tujuan kebugaran Anda.
+              {workoutData?.title
+                ? `${workoutData.title} — ${workoutData.focusMuscle}.`
+                : 'Semua rekomendasi latihan yang disesuaikan dengan profil dan tujuan kebugaran Anda.'}
             </p>
           </div>
 
-          {/* Tombol Lihat Semua */}
           <div className='mt-4 flex justify-end'>
             <button
               type='button'
@@ -335,8 +430,13 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Card workout */}
-          {!showAllWorkouts ? (
+          {workoutRecommendations.length === 0 ? (
+            <Card className='mt-5 px-6 py-8 text-center'>
+              <p className='font-body text-body-sm text-text'>
+                Belum ada rekomendasi latihan untuk ditampilkan.
+              </p>
+            </Card>
+          ) : !showAllWorkouts ? (
             <div className='mt-5 overflow-x-auto pb-4'>
               <div className='flex w-max gap-5'>
                 {workoutRecommendations.map((workout) => (
@@ -361,6 +461,212 @@ export default function Dashboard() {
           )}
         </section>
       </div>
+      {/* =====================================================
+    MODAL DETAIL MAKANAN
+    ===================================================== */}
+
+      {selectedFood && (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-5 py-8'
+          onClick={() => setSelectedFood(null)}
+        >
+          <div
+            role='dialog'
+            aria-modal='true'
+            className='max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-surface shadow-xl'
+            onClick={(event) => event.stopPropagation()}
+          >
+            <img
+              src={selectedFood.image}
+              alt={selectedFood.name}
+              className='h-52 w-full object-cover'
+            />
+
+            <div className='p-6'>
+              <div className='flex items-start justify-between gap-4'>
+                <div>
+                  <p className='font-body text-body-sm font-semibold text-primary'>
+                    {selectedFood.category}
+                  </p>
+
+                  <h2 className='mt-2 font-heading text-heading-lg font-bold text-text'>
+                    {selectedFood.name}
+                  </h2>
+                </div>
+
+                <button
+                  type='button'
+                  onClick={() => setSelectedFood(null)}
+                  aria-label='Tutup detail makanan'
+                  className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xl text-text transition hover:bg-background'
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className='mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4'>
+                <div className='rounded-lg bg-primary px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>
+                    Protein
+                  </p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedFood.protein}g
+                  </p>
+                </div>
+
+                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>
+                    Karbohidrat
+                  </p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedFood.carbs}g
+                  </p>
+                </div>
+
+                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>Lemak</p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedFood.fat}g
+                  </p>
+                </div>
+
+                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>Kalori</p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedFood.calories ?? '—'} Kkal
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type='button'
+                onClick={() => setSelectedFood(null)}
+                className='mt-6 w-full rounded-lg bg-accent py-3 font-body text-body-sm font-semibold text-white transition hover:brightness-95'
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================
+    MODAL DETAIL LATIHAN
+    ===================================================== */}
+
+      {selectedWorkout && (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-5 py-8'
+          onClick={() => setSelectedWorkout(null)}
+        >
+          <div
+            role='dialog'
+            aria-modal='true'
+            className='max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-surface shadow-xl'
+            onClick={(event) => event.stopPropagation()}
+          >
+            <img
+              src={selectedWorkout.image}
+              alt={selectedWorkout.name}
+              className='h-52 w-full object-cover'
+            />
+
+            <div className='p-6'>
+              <div className='flex items-start justify-between gap-4'>
+                <div>
+                  <p className='font-body text-body-sm font-semibold text-primary'>
+                    {selectedWorkout.level}
+                  </p>
+
+                  <h2 className='mt-2 font-heading text-heading-lg font-bold text-text'>
+                    {selectedWorkout.name}
+                  </h2>
+                </div>
+
+                <button
+                  type='button'
+                  onClick={() => setSelectedWorkout(null)}
+                  aria-label='Tutup detail latihan'
+                  className='flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xl text-text transition hover:bg-background'
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className='mt-5 space-y-2 font-body text-body-sm text-text'>
+                <p>
+                  Program:{' '}
+                  <span className='font-semibold'>{selectedWorkout.title}</span>
+                </p>
+
+                <p>
+                  Fokus otot:{' '}
+                  <span className='font-semibold'>
+                    {selectedWorkout.focusMuscle}
+                  </span>
+                </p>
+
+                <p>
+                  Durasi:{' '}
+                  <span className='font-semibold'>
+                    {selectedWorkout.durationMinutes} menit
+                  </span>
+                </p>
+              </div>
+
+              <div className='mt-6 grid grid-cols-3 gap-3'>
+                <div className='rounded-lg bg-primary px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>Set</p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedWorkout.sets}
+                  </p>
+                </div>
+
+                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>
+                    Repetisi
+                  </p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedWorkout.reps}
+                  </p>
+                </div>
+
+                <div className='rounded-lg bg-accent px-3 py-3 text-white'>
+                  <p className='font-body text-body-sm font-semibold'>
+                    Istirahat
+                  </p>
+
+                  <p className='mt-1 font-body text-body-sm'>
+                    {selectedWorkout.rest} detik
+                  </p>
+                </div>
+              </div>
+
+              {selectedWorkout.aiNotes && (
+                <div className='mt-6 rounded-lg bg-background p-4'>
+                  <p className='font-body text-body-sm leading-relaxed text-text'>
+                    {selectedWorkout.aiNotes}
+                  </p>
+                </div>
+              )}
+
+              <button
+                type='button'
+                onClick={() => setSelectedWorkout(null)}
+                className='mt-6 w-full rounded-lg bg-accent py-3 font-body text-body-sm font-semibold text-white transition hover:brightness-95'
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

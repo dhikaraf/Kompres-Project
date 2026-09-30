@@ -1,29 +1,35 @@
 import { useState } from 'react';
+
 import { Link, useNavigate } from 'react-router-dom';
 
 import AuthLayout from '../../layouts/AuthLayout';
+
 import Card from '../../components/common/Card';
+
 import InputField from '../../components/common/InputField';
+
 import Button from '../../components/common/Button';
 
 import { useUser } from '../../context/UserContext';
 
 export default function Login() {
   const navigate = useNavigate();
+
   const { login } = useUser();
 
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: '',
   });
 
   const [errors, setErrors] = useState({
-    username: '',
+    email: '',
     password: '',
     general: '',
   });
 
   const [rememberMe, setRememberMe] = useState(false);
+
   const [loading, setLoading] = useState(false);
 
   const handleChange = (event) => {
@@ -43,13 +49,15 @@ export default function Login() {
 
   const validateForm = () => {
     const newErrors = {
-      username: '',
+      email: '',
       password: '',
       general: '',
     };
 
-    if (!formData.username.trim()) {
-      newErrors.username = 'Nama pengguna wajib diisi.';
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email wajib diisi.';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Format email tidak valid.';
     }
 
     if (!formData.password) {
@@ -58,7 +66,7 @@ export default function Login() {
 
     setErrors(newErrors);
 
-    return !newErrors.username && !newErrors.password;
+    return !newErrors.email && !newErrors.password;
   };
 
   const handleSubmit = async (event) => {
@@ -72,12 +80,8 @@ export default function Login() {
 
     setLoading(true);
 
-    // Memberi jeda kecil agar state loading terlihat
-    // dan pengalaman pengguna terasa lebih natural.
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const result = login({
-      username: formData.username.trim(),
+    const result = await login({
+      email: formData.email.trim(),
       password: formData.password,
     });
 
@@ -93,7 +97,6 @@ export default function Login() {
 
     setLoading(false);
 
-    // Login berhasil.
     navigate('/dashboard');
   };
 
@@ -112,16 +115,17 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit} noValidate className='mt-9'>
-          {/* Nama Pengguna */}
+          {/* Email */}
           <InputField
-            id='username'
-            label='Nama Pengguna'
-            value={formData.username}
+            id='email'
+            label='Email'
+            type='email'
+            value={formData.email}
             onChange={handleChange}
-            autoComplete='username'
-            placeholder='Masukkan nama pengguna'
+            autoComplete='email'
+            placeholder='Masukkan email'
             required
-            error={errors.username}
+            error={errors.email}
             disabled={loading}
           />
 

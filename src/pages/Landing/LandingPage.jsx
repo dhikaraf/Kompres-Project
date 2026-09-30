@@ -52,24 +52,20 @@ const steps = [
 
 const teamMembers = [
   {
-    name: 'Nama Anda',
-    quote: 'Kutipan Anda',
-    role: 'Peran Anda',
+    name: 'Adam Kevin',
+    role: 'Peran Brok',
   },
   {
-    name: 'Nama Anda',
-    quote: 'Kutipan Anda',
-    role: 'Peran Anda',
+    name: 'Daffa Azra',
+    role: 'Peran Brok',
   },
   {
-    name: 'Nama Anda',
-    quote: 'Kutipan Anda',
-    role: 'Peran Anda',
+    name: 'Danendra',
+    role: 'Peran Brok',
   },
   {
-    name: 'Nama Anda',
-    quote: 'Kutipan Anda',
-    role: 'Peran Anda',
+    name: 'Rafly Andhika',
+    role: 'Peran Brok',
   },
 ];
 
@@ -251,12 +247,8 @@ export default function LandingPage() {
                 </h3>
 
                 <p className='mt-1 font-body text-body-sm text-text'>
-                  {member.quote}
-                </p>
-
-                <Button variant='accent' className='mt-4'>
                   {member.role}
-                </Button>
+                </p>
               </div>
             </Card>
           ))}

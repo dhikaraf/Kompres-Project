@@ -1,26 +1,31 @@
 import { useState } from 'react';
+
 import { Link, useNavigate } from 'react-router-dom';
 
 import AuthLayout from '../../layouts/AuthLayout';
+
 import Card from '../../components/common/Card';
+
 import InputField from '../../components/common/InputField';
+
 import Button from '../../components/common/Button';
 
 import { useUser } from '../../context/UserContext';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { register } = useUser();
+
+  const { register, login } = useUser();
 
   const [formData, setFormData] = useState({
-    username: '',
+    name: '',
     email: '',
     password: '',
     confirmPassword: '',
   });
 
   const [errors, setErrors] = useState({
-    username: '',
+    name: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -37,7 +42,6 @@ export default function Register() {
       [name]: value,
     }));
 
-    // Hapus error field ketika user mulai memperbaiki input.
     setErrors((current) => ({
       ...current,
       [name]: '',
@@ -47,20 +51,20 @@ export default function Register() {
 
   const validateForm = () => {
     const newErrors = {
-      username: '',
+      name: '',
       email: '',
       password: '',
       confirmPassword: '',
       general: '',
     };
 
-    const username = formData.username.trim();
+    const name = formData.name.trim();
     const email = formData.email.trim();
 
-    if (!username) {
-      newErrors.username = 'Nama pengguna wajib diisi.';
-    } else if (username.length < 3) {
-      newErrors.username = 'Nama pengguna minimal terdiri dari 3 karakter.';
+    if (!name) {
+      newErrors.name = 'Nama pengguna wajib diisi.';
+    } else if (name.length < 3) {
+      newErrors.name = 'Nama pengguna minimal terdiri dari 3 karakter.';
     }
 
     if (!email) {
@@ -97,19 +101,41 @@ export default function Register() {
 
     setLoading(true);
 
-    // Simulasi proses registrasi agar UX terasa natural.
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const result = register({
-      username: formData.username.trim(),
+    /*
+     * 1. Register ke backend
+     */
+    const registerResult = await register({
+      name: formData.name.trim(),
       email: formData.email.trim().toLowerCase(),
       password: formData.password,
     });
 
-    if (!result.success) {
+    if (!registerResult.success) {
       setErrors((current) => ({
         ...current,
-        general: result.message,
+        general: registerResult.message,
+      }));
+
+      setLoading(false);
+      return;
+    }
+
+    /*
+     * 2. Login otomatis setelah register berhasil.
+     *
+     * Tujuannya agar JWT sudah tersedia
+     * sebelum user masuk ke onboarding.
+     */
+    const loginResult = await login({
+      email: formData.email.trim().toLowerCase(),
+      password: formData.password,
+    });
+
+    if (!loginResult.success) {
+      setErrors((current) => ({
+        ...current,
+        general:
+          'Registrasi berhasil, tetapi login otomatis gagal. Silakan masuk melalui halaman login.',
       }));
 
       setLoading(false);
@@ -118,8 +144,9 @@ export default function Register() {
 
     setLoading(false);
 
-    // Registrasi berhasil.
-    // User langsung dianggap login oleh UserContext.
+    /*
+     * 3. Masuk ke onboarding
+     */
     navigate('/onboarding');
   };
 
@@ -140,14 +167,14 @@ export default function Register() {
         <form onSubmit={handleSubmit} noValidate className='mt-9'>
           {/* Nama Pengguna */}
           <InputField
-            id='username'
+            id='name'
             label='Nama Pengguna'
-            value={formData.username}
+            value={formData.name}
             onChange={handleChange}
-            autoComplete='username'
+            autoComplete='name'
             placeholder='Masukkan nama pengguna'
             required
-            error={errors.username}
+            error={errors.name}
             disabled={loading}
           />
 

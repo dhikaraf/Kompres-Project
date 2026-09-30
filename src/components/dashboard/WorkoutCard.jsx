@@ -3,7 +3,7 @@ import Card from '../common/Card';
 export default function WorkoutCard({ workout, onMore }) {
   return (
     <Card className='flex h-[405px] w-[270px] shrink-0 flex-col overflow-hidden sm:w-[280px]'>
-      {/* Gambar Workout */}
+      {/* Gambar */}
       <div className='h-[145px] w-full shrink-0 overflow-hidden'>
         <img
           src={workout.image}
@@ -19,12 +19,12 @@ export default function WorkoutCard({ workout, onMore }) {
           Level: {workout.level}
         </p>
 
-        {/* Nama Workout */}
+        {/* Nama Latihan */}
         <h3 className='mt-2 h-[58px] overflow-hidden font-heading text-heading-lg font-semibold leading-tight text-text'>
           {workout.name}
         </h3>
 
-        {/* Detail Workout */}
+        {/* Detail */}
         <div className='mt-4 min-h-[44px] font-body text-[13px] leading-snug text-text'>
           <p>
             {workout.sets} Set × {workout.reps} Repetisi
@@ -33,12 +33,12 @@ export default function WorkoutCard({ workout, onMore }) {
           <p className='mt-1'>Istirahat: {workout.rest} detik</p>
         </div>
 
-        {/* Rekomendasi Beban */}
-        <p className='mt-4 min-h-[20px] font-body text-body-sm text-text'>
-          Rekomendasi: {workout.recommendedWeight} Kg
+        {/* Program */}
+        <p className='mt-4 min-h-[20px] overflow-hidden font-body text-body-sm text-text'>
+          Fokus: {workout.focusMuscle || 'Belum ditentukan'}
         </p>
 
-        {/* Tombol selalu di bawah */}
+        {/* Tombol */}
         <button
           type='button'
           onClick={() => onMore?.(workout)}

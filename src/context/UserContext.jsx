@@ -1,136 +1,143 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 
+import { getCurrentUser, loginUser, registerUser } from '../services/api';
+
 const UserContext = createContext(null);
 
-/*
- * Data user dummy untuk testing frontend.
- * Hanya digunakan selama pengembangan.
- */
-const defaultUsers = [
-  {
-    id: 1,
-    username: 'demo',
-    email: 'demo@smartgym.local',
-    password: 'Demo12345',
-    goal: '',
-    age: null,
-    gender: '',
-    weight: null,
-    height: null,
-  },
-];
-
 export function UserProvider({ children }) {
-  const [users, setUsers] = useState(() => {
-    const savedUsers = localStorage.getItem('smartgym_users');
+  const [user, setUser] = useState(null);
 
-    if (savedUsers) {
-      return JSON.parse(savedUsers);
-    }
+  const [authLoading, setAuthLoading] = useState(true);
 
-    return defaultUsers;
-  });
-
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('smartgym_current_user');
-
-    if (savedUser) {
-      return JSON.parse(savedUser);
-    }
-
-    return null;
-  });
-
+  /*
+   * Mengambil user dari backend berdasarkan JWT
+   * yang tersimpan di localStorage.
+   */
   useEffect(() => {
-    localStorage.setItem('smartgym_users', JSON.stringify(users));
-  }, [users]);
+    const initializeUser = async () => {
+      const token = localStorage.getItem('smartgym_token');
 
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem('smartgym_current_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('smartgym_current_user');
-    }
-  }, [user]);
+      if (!token) {
+        setAuthLoading(false);
+        return;
+      }
 
-  const register = ({ username, email, password }) => {
-    const existingUser = users.find(
-      (item) =>
-        item.username.toLowerCase() === username.toLowerCase() ||
-        item.email.toLowerCase() === email.toLowerCase(),
-    );
+      try {
+        const response = await getCurrentUser();
 
-    if (existingUser) {
+        /*
+         * Menyesuaikan beberapa kemungkinan
+         * bentuk response dari backend.
+         */
+        const currentUser =
+          response?.user || response?.data?.user || response?.data || response;
+
+        setUser(currentUser);
+      } catch (error) {
+        console.error('Session tidak valid atau sudah berakhir:', error);
+
+        localStorage.removeItem('smartgym_token');
+        setUser(null);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    initializeUser();
+  }, []);
+
+  /*
+   * Login melalui backend
+   */
+  const login = async ({ email, password }) => {
+    try {
+      const response = await loginUser({
+        email,
+        password,
+      });
+
+      const token = response?.token || response?.data?.token;
+
+      if (!token) {
+        return {
+          success: false,
+          message: 'Token login tidak ditemukan.',
+        };
+      }
+
+      localStorage.setItem('smartgym_token', token);
+
+      const loggedInUser = response?.user || response?.data?.user || null;
+
+      setUser(loggedInUser);
+
+      return {
+        success: true,
+        user: loggedInUser,
+      };
+    } catch (error) {
       return {
         success: false,
-        message: 'Nama pengguna atau email sudah digunakan.',
+        message:
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          'Email atau kata sandi tidak sesuai.',
       };
     }
-
-    const newUser = {
-      id: Date.now(),
-      username,
-      email,
-      password,
-      goal: '',
-      age: null,
-      gender: '',
-      weight: null,
-      height: null,
-    };
-
-    setUsers((currentUsers) => [...currentUsers, newUser]);
-
-    setUser(newUser);
-
-    return {
-      success: true,
-      user: newUser,
-    };
   };
 
-  const login = ({ username, password }) => {
-    const foundUser = users.find(
-      (item) =>
-        item.username.toLowerCase() === username.toLowerCase() &&
-        item.password === password,
-    );
+  /*
+   * Register melalui backend
+   */
+  const register = async ({ name, email, password }) => {
+    try {
+      const response = await registerUser({
+        name,
+        email,
+        password,
+      });
 
-    if (!foundUser) {
+      return {
+        success: true,
+        user: response?.user || response?.data?.user || null,
+        data: response,
+      };
+    } catch (error) {
       return {
         success: false,
-        message: 'Nama pengguna atau kata sandi tidak sesuai.',
+        message:
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          'Registrasi gagal. Silakan coba lagi.',
       };
     }
-
-    setUser(foundUser);
-
-    return {
-      success: true,
-      user: foundUser,
-    };
   };
 
+  /*
+   * Update user sementara di state frontend.
+   *
+   * Nanti ketika onboarding dihubungkan ke backend,
+   * fungsi ini akan kita lengkapi agar menggunakan
+   * PUT /api/profile.
+   */
   const updateUser = (updatedData) => {
-    if (!user) {
-      return;
-    }
+    setUser((currentUser) => {
+      if (!currentUser) {
+        return currentUser;
+      }
 
-    const updatedUser = {
-      ...user,
-      ...updatedData,
-    };
-
-    setUser(updatedUser);
-
-    setUsers((currentUsers) =>
-      currentUsers.map((item) =>
-        item.id === updatedUser.id ? updatedUser : item,
-      ),
-    );
+      return {
+        ...currentUser,
+        ...updatedData,
+      };
+    });
   };
 
+  /*
+   * Logout
+   */
   const logout = () => {
+    localStorage.removeItem('smartgym_token');
     setUser(null);
   };
 
@@ -138,9 +145,9 @@ export function UserProvider({ children }) {
     <UserContext.Provider
       value={{
         user,
-        users,
-        register,
+        authLoading,
         login,
+        register,
         updateUser,
         logout,
       }}

@@ -2,35 +2,29 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useUser } from '../../context/UserContext';
+import { updateProfile } from '../../services/api';
+
 import OnboardingLayout from '../../layouts/OnboardingLayout';
 
 import Goal from './Goal';
+import FitnessLevel from './FitnessLevel';
 import AgeGender from './AgeGender';
 import WeightHeight from './WeightHeight';
 
 export default function Wizard() {
   const navigate = useNavigate();
+
   const { user, updateUser } = useUser();
 
   const [currentStep, setCurrentStep] = useState(0);
 
-  /* =========================
-     STEP 1 - GOAL
-     ========================= */
-
   const [selectedGoal, setSelectedGoal] = useState(user?.goal || '');
 
-  /* =========================
-     STEP 2 - AGE & GENDER
-     ========================= */
+  const [fitnessLevel, setFitnessLevel] = useState(user?.fitness_level || '');
 
   const [gender, setGender] = useState(user?.gender || '');
 
   const [age, setAge] = useState(user?.age || 23);
-
-  /* =========================
-     STEP 3 - HEIGHT & WEIGHT
-     ========================= */
 
   const [height, setHeight] = useState(user?.height || 150);
 
@@ -40,6 +34,10 @@ export default function Wizard() {
     {
       id: 'goal',
       title: 'Tujuan',
+    },
+    {
+      id: 'fitness-level',
+      title: 'Tingkat Kesulitan',
     },
     {
       id: 'age-gender',
@@ -60,6 +58,14 @@ export default function Wizard() {
   };
 
   /* =========================
+     FITNESS LEVEL
+     ========================= */
+
+  const handleSelectFitnessLevel = (level) => {
+    setFitnessLevel(level);
+  };
+
+  /* =========================
      NAVIGATION
      ========================= */
 
@@ -72,19 +78,29 @@ export default function Wizard() {
     setCurrentStep((current) => current - 1);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     /* =========================
-       STEP 1
-       ========================= */
+     STEP 1 - GOAL
+     ========================= */
 
     if (currentStep === 0) {
       if (!selectedGoal) {
         return;
       }
 
-      updateUser({
-        goal: selectedGoal,
-      });
+      setCurrentStep((current) => current + 1);
+
+      return;
+    }
+
+    /* =========================
+     STEP 2 - FITNESS LEVEL
+     ========================= */
+
+    if (currentStep === 1) {
+      if (!fitnessLevel) {
+        return;
+      }
 
       setCurrentStep((current) => current + 1);
 
@@ -92,39 +108,77 @@ export default function Wizard() {
     }
 
     /* =========================
-       STEP 2
-       ========================= */
+     STEP 3 - AGE & GENDER
+     ========================= */
 
-    if (currentStep === 1) {
+    if (currentStep === 2) {
       if (!gender || !age) {
         return;
       }
 
-      updateUser({
-        gender,
-        age,
-      });
-
       setCurrentStep((current) => current + 1);
 
       return;
     }
 
     /* =========================
-       STEP 3
-       ========================= */
+     STEP 4 - WEIGHT & HEIGHT
+     ========================= */
 
-    if (currentStep === 2) {
+    if (currentStep === 3) {
       if (!height || !weight) {
         return;
       }
 
-      updateUser({
-        height,
-        weight,
-      });
+      /*
+       * Mapping nilai goal frontend
+       * ke nilai yang digunakan backend.
+       */
+      const goalMapping = {
+        'lose-weight': 'lose',
+        'gain-weight': 'gain',
+        'stay-healthy': 'healthy',
+      };
 
-      navigate('/dashboard');
+      const profileData = {
+        gender,
+        age,
+        weight,
+        height,
+        fitness_level: fitnessLevel,
+        fitness_goal: goalMapping[selectedGoal],
+      };
+
+      try {
+        /*
+         * Kirim seluruh data onboarding
+         * ke backend.
+         */
+        await updateProfile(profileData);
+
+        /*
+         * Tetap simpan data di state frontend
+         * agar halaman yang sedang aktif
+         * langsung mengenali data terbaru.
+         */
+        updateUser({
+          goal: selectedGoal,
+          fitness_level: fitnessLevel,
+          gender,
+          age,
+          weight,
+          height,
+        });
+
+        navigate('/dashboard');
+      } catch (error) {
+        console.error('Gagal menyimpan profile:', error);
+
+        alert(
+          error.response?.data?.message ||
+            'Profil gagal disimpan. Silakan coba lagi.',
+        );
+      }
     }
   };
 
@@ -141,6 +195,14 @@ export default function Wizard() {
 
       case 1:
         return (
+          <FitnessLevel
+            selectedLevel={fitnessLevel}
+            onSelectLevel={handleSelectFitnessLevel}
+          />
+        );
+
+      case 2:
+        return (
           <AgeGender
             gender={gender}
             age={age}
@@ -149,7 +211,7 @@ export default function Wizard() {
           />
         );
 
-      case 2:
+      case 3:
         return (
           <WeightHeight
             height={height}
@@ -170,8 +232,9 @@ export default function Wizard() {
 
   const isNextDisabled =
     (currentStep === 0 && !selectedGoal) ||
-    (currentStep === 1 && !gender) ||
-    (currentStep === 2 && (!height || !weight));
+    (currentStep === 1 && !fitnessLevel) ||
+    (currentStep === 2 && (!gender || !age)) ||
+    (currentStep === 3 && (!height || !weight));
 
   return (
     <OnboardingLayout
