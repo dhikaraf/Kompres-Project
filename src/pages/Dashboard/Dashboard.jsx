@@ -8,8 +8,7 @@ import WorkoutCard from '../../components/dashboard/WorkoutCard';
 import AiWorkoutRecommendation from '../../components/dashboard/AiWorkoutRecommendation';
 import ScheduleCard from '../../components/dashboard/ScheduleCard';
 import StreakCard from '../../components/dashboard/StreakCard';
-import CalorieCard from '../../components/dashboard/CalorieCard';
-import NutritionSummaryCard from '../../components/dashboard/NutritionSummaryCard';
+import { getSchedules } from '../../services/featureApi';
 
 const goalLabels = {
   lose: 'menurunkan berat badan',
@@ -35,6 +34,7 @@ export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState(null);
   const [nutritionData, setNutritionData] = useState(null);
   const [workoutData, setWorkoutData] = useState(null);
+  const [todaySchedules, setTodaySchedules] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -44,6 +44,7 @@ export default function Dashboard() {
 
   const [selectedFood, setSelectedFood] = useState(null);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
+  const [showNutritionDetails, setShowNutritionDetails] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -59,6 +60,29 @@ export default function Dashboard() {
         const dashboard = dashboardResponse.data?.data || null;
 
         setDashboardData(dashboard);
+        const today = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Jakarta',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date());
+
+        const schedulesResponse = await getSchedules({
+          startDate: today,
+          endDate: today,
+        });
+
+        const scheduleData = Array.isArray(schedulesResponse)
+          ? schedulesResponse
+          : Array.isArray(schedulesResponse?.data)
+            ? schedulesResponse.data
+            : Array.isArray(schedulesResponse?.schedules)
+              ? schedulesResponse.schedules
+              : Array.isArray(schedulesResponse?.data?.schedules)
+                ? schedulesResponse.data.schedules
+                : [];
+
+        setTodaySchedules(scheduleData);
 
         /*
          * 2. Ambil profile dari dashboard
@@ -265,66 +289,113 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* AI Nutrition Plan */}
+          {/* Rincian Nutrisi AI */}
           <Card className='p-5 sm:p-6'>
-            <div className='flex flex-wrap items-center gap-3'>
-              <h2 className='font-heading text-heading-lg font-bold text-text'>
-                Rencana Nutrisi AI
-              </h2>
+            <div className='flex items-start justify-between gap-4'>
+              <div>
+                <h2 className='font-heading text-heading-lg font-bold text-text'>
+                  Rincian Nutrisi AI
+                </h2>
 
-              <span className='rounded-full bg-background px-3 py-1 font-body text-body-sm font-medium text-text'>
-                Level: {fitnessLevel}
+                <p className='mt-1 font-body text-body-sm text-text'>
+                  Kebutuhan kalori harian berdasarkan profil Anda.
+                </p>
+              </div>
+
+              <span className='shrink-0 rounded-full bg-primary/10 px-3 py-1 font-body text-body-sm font-semibold text-primary'>
+                {fitnessLevel}
               </span>
             </div>
 
-            <p className='mt-2 font-body text-body-sm leading-relaxed text-text sm:text-body'>
-              Pembagian kebutuhan nutrisi berdasarkan profil dan target
-              kebugaran Anda.
-            </p>
+            <div className='mt-6 rounded-lg bg-primary px-5 py-5 text-white'>
+              <p className='font-body text-body-sm'>Target Kalori Harian</p>
 
-            <div className='mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4'>
-              {/* Kalori */}
-              <div className='col-span-2 flex items-center rounded-lg bg-primary px-4 py-4 sm:col-span-1 sm:flex-col sm:items-start sm:justify-center'>
-                <span className='font-heading text-3xl font-bold text-white'>
-                  {targetCalories != null
-                    ? Number(targetCalories).toLocaleString('id-ID')
-                    : '—'}
-                </span>
+              <p className='mt-1 font-heading text-4xl font-bold'>
+                {targetCalories != null
+                  ? `${Number(targetCalories).toLocaleString('id-ID')} kkal`
+                  : '—'}
+              </p>
 
-                <span className='ml-2 font-body text-body-sm text-white sm:ml-0 sm:mt-1'>
-                  Kkal / Hari
-                </span>
-              </div>
-
-              {/* Protein */}
-              <div className='rounded-lg bg-accent px-4 py-3 text-white'>
-                <p className='font-body text-body-sm font-semibold'>Protein</p>
-
-                <p className='mt-1 font-body text-body-sm'>
-                  {protein != null ? `${protein}g / Hari` : '—'}
-                </p>
-              </div>
-
-              {/* Karbohidrat */}
-              <div className='rounded-lg bg-accent px-4 py-3 text-white'>
-                <p className='font-body text-body-sm font-semibold'>
-                  Karbohidrat
-                </p>
-
-                <p className='mt-1 font-body text-body-sm'>
-                  {carbs != null ? `${carbs}g / Hari` : '—'}
-                </p>
-              </div>
-
-              {/* Lemak */}
-              <div className='rounded-lg bg-accent px-4 py-3 text-white'>
-                <p className='font-body text-body-sm font-semibold'>Lemak</p>
-
-                <p className='mt-1 font-body text-body-sm'>
-                  {fat != null ? `${fat}g / Hari` : '—'}
-                </p>
-              </div>
+              <p className='mt-1 font-body text-body-sm'>
+                Disesuaikan dengan tujuan kebugaran Anda.
+              </p>
             </div>
+
+            <button
+              type='button'
+              onClick={() => setShowNutritionDetails((current) => !current)}
+              className='mt-5 flex w-full items-center justify-between rounded-lg bg-background px-4 py-3 text-left transition hover:bg-primary/5'
+            >
+              <span className='font-body text-body-sm font-semibold text-text'>
+                Detail Profil AI
+              </span>
+
+              <span className='font-body text-body-sm font-semibold text-primary'>
+                {showNutritionDetails ? 'Sembunyikan' : 'Tampilkan'}
+              </span>
+            </button>
+
+            {showNutritionDetails && (
+              <div className='mt-4 space-y-4'>
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                  <div className='rounded-lg bg-background p-4'>
+                    <p className='font-body text-body-sm text-text'>BMR</p>
+
+                    <p className='mt-1 font-heading text-xl font-bold text-primary'>
+                      {nutritionData?.bmr != null
+                        ? `${Number(nutritionData.bmr).toLocaleString('id-ID')} kkal`
+                        : '—'}
+                    </p>
+                  </div>
+
+                  <div className='rounded-lg bg-background p-4'>
+                    <p className='font-body text-body-sm text-text'>TDEE</p>
+
+                    <p className='mt-1 font-heading text-xl font-bold text-primary'>
+                      {nutritionData?.tdee != null
+                        ? `${Number(nutritionData.tdee).toLocaleString('id-ID')} kkal`
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className='font-heading text-lg font-bold text-text'>
+                    Makronutrisi Harian
+                  </p>
+
+                  <div className='mt-3 grid grid-cols-3 gap-3'>
+                    <div className='rounded-lg bg-background p-3'>
+                      <p className='font-body text-body-sm text-text'>
+                        Protein
+                      </p>
+
+                      <p className='mt-1 font-body text-body-sm font-semibold text-primary'>
+                        {protein != null ? `${protein}g` : '—'}
+                      </p>
+                    </div>
+
+                    <div className='rounded-lg bg-background p-3'>
+                      <p className='font-body text-body-sm text-text'>
+                        Karbohidrat
+                      </p>
+
+                      <p className='mt-1 font-body text-body-sm font-semibold text-primary'>
+                        {carbs != null ? `${carbs}g` : '—'}
+                      </p>
+                    </div>
+
+                    <div className='rounded-lg bg-background p-3'>
+                      <p className='font-body text-body-sm text-text'>Lemak</p>
+
+                      <p className='mt-1 font-body text-body-sm font-semibold text-primary'>
+                        {fat != null ? `${fat}g` : '—'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
         </section>
 
@@ -333,32 +404,18 @@ export default function Dashboard() {
             JADWAL + STREAK
             ===================================================== */}
 
-        <section className='mt-10 grid grid-cols-1 gap-5 md:grid-cols-2'>
-          <ScheduleCard schedules={dashboardData?.todaySchedules || []} />
+        <section className='mt-8 grid grid-cols-1 items-stretch gap-5 md:grid-cols-2'>
+          <div className='h-full'>
+            <ScheduleCard schedules={todaySchedules} />
+          </div>
 
-          <StreakCard streak={dashboardData?.streak} />
+          <div className='h-full'>
+            <StreakCard streak={dashboardData?.streak} />
+          </div>
         </section>
 
         {/* =====================================================
             SECTION 3
-            TRACKING KALORI
-            ===================================================== */}
-
-        <section className='mt-5'>
-          <CalorieCard calories={dashboardData?.todayCalories} />
-        </section>
-
-        {/* =====================================================
-            SECTION 4
-            RINCIAN NUTRISI
-            ===================================================== */}
-
-        <section className='mt-10'>
-          <NutritionSummaryCard nutrition={nutritionData} />
-        </section>
-
-        {/* =====================================================
-            SECTION 5
             AI WORKOUT RECOMMENDATION DENGAN INPUT USER
             ===================================================== */}
 
@@ -367,7 +424,7 @@ export default function Dashboard() {
         </section>
 
         {/* =====================================================
-            SECTION 6
+            SECTION 4
             FOOD RECOMMENDATION
             ===================================================== */}
 
@@ -421,7 +478,7 @@ export default function Dashboard() {
         </section>
 
         {/* =====================================================
-            SECTION 7
+            SECTION 5
             WORKOUT RECOMMENDATION
             ===================================================== */}
 

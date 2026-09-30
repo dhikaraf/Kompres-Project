@@ -1,64 +1,138 @@
 import { useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import Card from '../../components/common/Card';
+import { getProfile, recommendMeal } from '../../services/api';
 import {
   addMealFood,
   createMealPlan,
   getMealPlans,
-  getFoodById,
   searchFoods,
 } from '../../services/featureApi';
 
-const today = new Date().toISOString().slice(0, 10);
+function getTodayIndonesia() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
 
 function getList(response, keys = []) {
   if (Array.isArray(response)) return response;
-  if (Array.isArray(response?.data)) return response.data;
-  for (const key of keys) {
-    if (Array.isArray(response?.data?.[key])) return response.data[key];
-    if (Array.isArray(response?.[key])) return response[key];
+
+  if (Array.isArray(response?.data)) {
+    return response.data;
   }
+
+  for (const key of keys) {
+    if (Array.isArray(response?.data?.[key])) {
+      return response.data[key];
+    }
+
+    if (Array.isArray(response?.[key])) {
+      return response[key];
+    }
+  }
+
   return [];
 }
 
 function number(value) {
   const result = Number(value);
+
   return Number.isFinite(result) ? result : 0;
 }
 
 export default function Nutrition() {
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(getTodayIndonesia());
+
+  const [profile, setProfile] = useState(null);
+  const [nutritionData, setNutritionData] = useState(null);
   const [plans, setPlans] = useState([]);
   const [foods, setFoods] = useState([]);
+
+  const [selectedRecommendation, setSelectedRecommendation] = useState(null);
+
+  const [showMealForm, setShowMealForm] = useState(false);
+  const [showFoodForm, setShowFoodForm] = useState(false);
+
+  const [selectedMealPlanId, setSelectedMealPlanId] = useState('');
   const [selectedFood, setSelectedFood] = useState(null);
   const [portion, setPortion] = useState(100);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
+
   const [mealForm, setMealForm] = useState({
     meal_type: 'breakfast',
     target_calories: 500,
-    is_ai_generated: false,
-  });
-  const [customForm, setCustomForm] = useState({
-    food_name_custom: '',
-    portion_g: 100,
-    calculated_calories: 0,
-    calculated_protein: 0,
-    calculated_carbs: 0,
-    calculated_fat: 0,
-    calculated_sugar: 0,
-    calculated_fiber: 0,
   });
 
+  const [loading, setLoading] = useState(true);
+  const [loadingNutrition, setLoadingNutrition] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  /*
+   * Memuat profil user dan rekomendasi nutrisi AI.
+   */
+  useEffect(() => {
+    const loadNutrition = async () => {
+      try {
+        setLoadingNutrition(true);
+        setError('');
+
+        const profileResponse = await getProfile();
+        const currentProfile = profileResponse?.data || profileResponse;
+
+        setProfile(currentProfile);
+
+        if (!currentProfile) {
+          throw new Error('Profil pengguna belum tersedia.');
+        }
+
+        const mealResponse = await recommendMeal({
+          weight: number(currentProfile.weight),
+          height: number(currentProfile.height),
+          age: number(currentProfile.age),
+          gender: currentProfile.gender,
+          fitness_goal: currentProfile.fitnessGoal,
+          fitness_level: currentProfile.fitnessLevel,
+          workout_intensity: 'high',
+        });
+
+        setNutritionData(mealResponse?.data || mealResponse);
+      } catch (requestError) {
+        console.error('Gagal memuat nutrisi:', requestError);
+
+        setError(
+          requestError.response?.data?.message ||
+            requestError.message ||
+            'Data nutrisi gagal dimuat.',
+        );
+      } finally {
+        setLoadingNutrition(false);
+      }
+    };
+
+    loadNutrition();
+  }, []);
+
+  /*
+   * Memuat meal plan berdasarkan tanggal yang dipilih.
+   */
   const loadPlans = async () => {
     try {
       setLoading(true);
+
       const response = await getMealPlans(date);
+
       setPlans(getList(response, ['mealPlans', 'meals']));
-    } catch (error) {
+    } catch (requestError) {
+      console.error('Gagal memuat meal plan:', requestError);
+
       setMessage(
-        error.response?.data?.message || 'Data pola makan gagal dimuat.',
+        requestError.response?.data?.message || 'Data meal plan gagal dimuat.',
       );
     } finally {
       setLoading(false);
@@ -69,24 +143,39 @@ export default function Nutrition() {
     loadPlans();
   }, [date]);
 
+  /*
+   * Memuat daftar makanan hanya ketika
+   * fitur Tambahkan Makanan dibuka.
+   */
   useEffect(() => {
+    if (!showFoodForm) return;
+
     const loadFoods = async () => {
       try {
         const response = await searchFoods();
+
         setFoods(getList(response, ['foods']));
-      } catch (error) {
+      } catch (requestError) {
+        console.error('Gagal memuat makanan:', requestError);
+
         setMessage('Daftar makanan gagal dimuat.');
       }
     };
-    loadFoods();
-  }, []);
 
+    loadFoods();
+  }, [showFoodForm]);
+
+  /*
+   * Menghitung nilai nutrisi berdasarkan porsi.
+   */
   const calculated = useMemo(() => {
     if (!selectedFood) return null;
-    const serving = number(
+
+    const servingSize = number(
       selectedFood.servingSizeG ?? selectedFood.serving_size_g ?? 100,
     );
-    const ratio = number(portion) / (serving || 100);
+
+    const ratio = number(portion) / (servingSize || 100);
 
     return {
       calories: number(selectedFood.calories) * ratio,
@@ -98,36 +187,56 @@ export default function Nutrition() {
     };
   }, [selectedFood, portion]);
 
+  /*
+   * Membuat meal plan baru.
+   */
   const handleCreateMealPlan = async (event) => {
     event.preventDefault();
+
     try {
       setSaving(true);
       setMessage('');
+
       await createMealPlan({
         date,
         meal_type: mealForm.meal_type,
         target_calories: Number(mealForm.target_calories),
-        is_ai_generated: mealForm.is_ai_generated,
+        is_ai_generated: false,
       });
+
       setMessage('Meal plan berhasil dibuat.');
+
+      setShowMealForm(false);
+
       await loadPlans();
-    } catch (error) {
-      setMessage(error.response?.data?.message || 'Meal plan gagal dibuat.');
+    } catch (requestError) {
+      console.error('Gagal membuat meal plan:', requestError);
+
+      setMessage(
+        requestError.response?.data?.message || 'Meal plan gagal dibuat.',
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const handleAddFood = async (mealPlanId) => {
-    if (!mealPlanId || !selectedFood || !calculated) {
+  /*
+   * Menambahkan makanan ke meal plan.
+   */
+  const handleAddFood = async (event) => {
+    event.preventDefault();
+
+    if (!selectedMealPlanId || !selectedFood || !calculated) {
       setMessage('Pilih meal plan dan makanan terlebih dahulu.');
+
       return;
     }
 
     try {
       setSaving(true);
       setMessage('');
-      await addMealFood(mealPlanId, {
+
+      await addMealFood(selectedMealPlanId, {
         food_id: selectedFood.id,
         portion_g: Number(portion),
         calculated_calories: calculated.calories,
@@ -137,81 +246,199 @@ export default function Nutrition() {
         calculated_sugar: calculated.sugar,
         calculated_fiber: calculated.fiber,
       });
+
       setMessage('Makanan berhasil ditambahkan ke meal plan.');
-      await loadPlans();
-    } catch (error) {
-      setMessage(error.response?.data?.message || 'Makanan gagal ditambahkan.');
-    } finally {
-      setSaving(false);
-    }
-  };
 
-  const handleAddCustom = async (mealPlanId) => {
-    if (!mealPlanId || !customForm.food_name_custom.trim()) {
-      setMessage('Isi nama makanan custom dan pilih meal plan.');
-      return;
-    }
+      setSelectedFood(null);
+      setSelectedMealPlanId('');
+      setPortion(100);
 
-    try {
-      setSaving(true);
-      setMessage('');
-      await addMealFood(mealPlanId, {
-        ...customForm,
-        food_name_custom: customForm.food_name_custom.trim(),
-        portion_g: Number(customForm.portion_g),
-        calculated_calories: Number(customForm.calculated_calories),
-        calculated_protein: Number(customForm.calculated_protein),
-        calculated_carbs: Number(customForm.calculated_carbs),
-        calculated_fat: Number(customForm.calculated_fat),
-        calculated_sugar: Number(customForm.calculated_sugar),
-        calculated_fiber: Number(customForm.calculated_fiber),
-      });
-      setMessage('Makanan custom berhasil ditambahkan.');
+      setShowFoodForm(false);
+
       await loadPlans();
-    } catch (error) {
+    } catch (requestError) {
+      console.error('Gagal menambahkan makanan:', requestError);
+
       setMessage(
-        error.response?.data?.message || 'Makanan custom gagal ditambahkan.',
+        requestError.response?.data?.message || 'Makanan gagal ditambahkan.',
       );
     } finally {
       setSaving(false);
     }
   };
 
-  const handleFoodSelect = async (event) => {
-    const id = event.target.value;
-    if (!id) {
-      setSelectedFood(null);
-      return;
-    }
+  const recommendedFoods = nutritionData?.recommendedFoods || [];
 
-    const localFood = foods.find((food) => food.id === id);
-    setSelectedFood(localFood || null);
+  const targetCalories = number(nutritionData?.targetCalories);
 
-    try {
-      const response = await getFoodById(id);
-      setSelectedFood(response?.data || response || localFood);
-    } catch {
-      // List response is already enough for calculation if detail endpoint fails.
-    }
-  };
+  const protein = number(nutritionData?.macroDistribution?.proteinG);
+
+  const carbs = number(nutritionData?.macroDistribution?.carbsG);
+
+  const fat = number(nutritionData?.macroDistribution?.fatG);
+
+  const username = profile?.name || profile?.username || 'Pengguna';
+
+  if (loadingNutrition) {
+    return (
+      <DashboardLayout>
+        <div className='mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-7'>
+          <Card className='flex min-h-[300px] items-center justify-center'>
+            <p className='font-body text-body text-text'>
+              Memuat rekomendasi nutrisi...
+            </p>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className='mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-7'>
+          <Card className='px-6 py-8 text-center'>
+            <h1 className='font-heading text-heading-lg font-bold text-text'>
+              Nutrisi tidak dapat dimuat
+            </h1>
+
+            <p className='mt-3 font-body text-body-sm text-text'>{error}</p>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
       <div className='mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-7'>
-        <h1 className='font-heading text-heading-xl font-bold text-text'>
-          Pola Makan & Kalori
-        </h1>
-        <p className='mt-2 font-body text-body leading-relaxed text-text'>
-          Atur meal plan, tambahkan makanan, dan catat asupan berdasarkan data
-          makanan yang tersedia.
-        </p>
+        {/* HEADER */}
+        <div>
+          <h1 className='font-heading text-heading-xl font-bold text-text'>
+            Nutrisi
+          </h1>
 
-        <Card className='mt-8 p-5 sm:p-6'>
+          <p className='mt-2 max-w-3xl font-body text-body leading-relaxed text-text'>
+            Pantau kebutuhan nutrisi dan atur meal plan berdasarkan profil
+            kebugaran Anda.
+          </p>
+        </div>
+
+        {/* RINGKASAN AI */}
+        <section className='mt-8'>
+          <h2 className='font-heading text-heading-lg font-bold text-text'>
+            Rekomendasi Nutrisi AI
+          </h2>
+
+          <div className='mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4'>
+            <Card className='p-5'>
+              <p className='font-body text-body-sm text-text'>Target Kalori</p>
+
+              <p className='mt-2 font-heading text-2xl font-bold text-text'>
+                {targetCalories} kkal
+              </p>
+            </Card>
+
+            <Card className='p-5'>
+              <p className='font-body text-body-sm text-text'>Protein</p>
+
+              <p className='mt-2 font-heading text-2xl font-bold text-text'>
+                {protein} g
+              </p>
+            </Card>
+
+            <Card className='p-5'>
+              <p className='font-body text-body-sm text-text'>Karbohidrat</p>
+
+              <p className='mt-2 font-heading text-2xl font-bold text-text'>
+                {carbs} g
+              </p>
+            </Card>
+
+            <Card className='p-5'>
+              <p className='font-body text-body-sm text-text'>Lemak</p>
+
+              <p className='mt-2 font-heading text-2xl font-bold text-text'>
+                {fat} g
+              </p>
+            </Card>
+          </div>
+        </section>
+
+        {/* REKOMENDASI MAKANAN */}
+        <section className='mt-12'>
+          <div>
+            <h2 className='font-heading text-heading-lg font-bold text-text'>
+              Rekomendasi Makanan
+            </h2>
+
+            <p className='mt-2 font-body text-body-sm text-text'>
+              Pilihan makanan yang direkomendasikan berdasarkan profil dan
+              target kebugaran Anda.
+            </p>
+          </div>
+
+          {recommendedFoods.length === 0 ? (
+            <Card className='mt-5 px-6 py-8 text-center'>
+              <p className='font-body text-body-sm text-text'>
+                Belum ada rekomendasi makanan.
+              </p>
+            </Card>
+          ) : (
+            <div className='mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
+              {recommendedFoods.map((food) => (
+                <Card key={food.id} className='flex h-full flex-col p-4'>
+                  <div className='flex-1'>
+                    <h3 className='font-heading text-lg font-semibold leading-snug text-text'>
+                      {food.name}
+                    </h3>
+
+                    <p className='mt-2 font-body text-body-sm text-text'>
+                      {food.category}
+                    </p>
+
+                    <div className='mt-4 space-y-1'>
+                      <p className='font-body text-body-sm text-text'>
+                        {food.servingSizeG ?? food.serving_size_g ?? 0} g
+                      </p>
+
+                      <p className='font-body text-body-sm font-medium text-text'>
+                        {food.calories ?? 0} kkal
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type='button'
+                    onClick={() => setSelectedRecommendation(food)}
+                    className='mt-5 w-full rounded-lg bg-primary px-4 py-2.5 font-body text-body-sm font-semibold text-white transition hover:opacity-90'
+                  >
+                    Detail
+                  </button>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* MEAL PLAN */}
+        <section className='mt-12'>
           <div className='flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
+            <div>
+              <h2 className='font-heading text-heading-lg font-bold text-text'>
+                Meal Plan
+              </h2>
+
+              <p className='mt-2 font-body text-body-sm text-text'>
+                Kelola pola makan Anda untuk tanggal yang dipilih.
+              </p>
+            </div>
+
             <div>
               <label className='block font-body text-body-sm font-semibold text-text'>
                 Tanggal
               </label>
+
               <input
                 type='date'
                 value={date}
@@ -220,283 +447,435 @@ export default function Nutrition() {
               />
             </div>
           </div>
-        </Card>
 
-        <div className='mt-6 grid gap-6 lg:grid-cols-2'>
-          <Card className='p-5 sm:p-6'>
-            <h2 className='font-heading text-heading-lg font-bold text-text'>
-              Buat Meal Plan
-            </h2>
-            <form onSubmit={handleCreateMealPlan} className='mt-6 space-y-4'>
-              <div>
-                <label className='block font-body text-body-sm font-semibold text-text'>
-                  Waktu Makan
-                </label>
-                <select
-                  value={mealForm.meal_type}
-                  onChange={(event) =>
-                    setMealForm((current) => ({
-                      ...current,
-                      meal_type: event.target.value,
-                    }))
-                  }
-                  className='mt-2 w-full rounded-lg border border-primary/10 bg-surface px-4 py-3 font-body text-body text-text outline-none'
-                >
-                  <option value='breakfast'>Sarapan</option>
-                  <option value='lunch'>Makan Siang</option>
-                  <option value='dinner'>Makan Malam</option>
-                  <option value='snack'>Snack</option>
-                </select>
-              </div>
+          <div className='mt-5 flex flex-wrap gap-3'>
+            <button
+              type='button'
+              onClick={() => {
+                setShowMealForm((current) => !current);
+                setShowFoodForm(false);
+              }}
+              className='rounded-lg bg-accent px-5 py-3 font-body text-body-sm font-semibold text-white'
+            >
+              {showMealForm ? 'Tutup Form' : 'Buat Meal Plan'}
+            </button>
 
-              <div>
-                <label className='block font-body text-body-sm font-semibold text-text'>
-                  Target Kalori
-                </label>
-                <input
-                  type='number'
-                  min='0'
-                  value={mealForm.target_calories}
-                  onChange={(event) =>
-                    setMealForm((current) => ({
-                      ...current,
-                      target_calories: event.target.value,
-                    }))
-                  }
-                  className='mt-2 w-full rounded-lg border border-primary/10 bg-surface px-4 py-3 font-body text-body text-text outline-none'
-                />
-              </div>
-
-              <label className='flex items-center gap-3 font-body text-body-sm text-text'>
-                <input
-                  type='checkbox'
-                  checked={mealForm.is_ai_generated}
-                  onChange={(event) =>
-                    setMealForm((current) => ({
-                      ...current,
-                      is_ai_generated: event.target.checked,
-                    }))
-                  }
-                />
-                Meal plan dibuat oleh AI
-              </label>
-
+            {plans.length > 0 && (
               <button
-                type='submit'
-                disabled={saving}
-                className='rounded-lg bg-accent px-5 py-3 font-body text-body-sm font-semibold text-white disabled:opacity-60'
+                type='button'
+                onClick={() => {
+                  setShowFoodForm((current) => !current);
+                  setShowMealForm(false);
+                }}
+                className='rounded-lg bg-primary px-5 py-3 font-body text-body-sm font-semibold text-white'
               >
-                {saving ? 'Menyimpan...' : 'Buat Meal Plan'}
+                {showFoodForm ? 'Tutup Form' : 'Tambahkan Makanan'}
               </button>
-            </form>
-          </Card>
-
-          <Card className='p-5 sm:p-6'>
-            <h2 className='font-heading text-heading-lg font-bold text-text'>
-              Tambahkan Makanan
-            </h2>
-            <div className='mt-6 space-y-4'>
-              <div>
-                <label className='block font-body text-body-sm font-semibold text-text'>
-                  Makanan
-                </label>
-                <select
-                  value={selectedFood?.id || ''}
-                  onChange={handleFoodSelect}
-                  className='mt-2 w-full rounded-lg border border-primary/10 bg-surface px-4 py-3 font-body text-body text-text outline-none'
-                >
-                  <option value=''>Pilih makanan</option>
-                  {foods.map((food) => (
-                    <option key={food.id} value={food.id}>
-                      {food.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className='block font-body text-body-sm font-semibold text-text'>
-                  Porsi (gram)
-                </label>
-                <input
-                  type='number'
-                  min='1'
-                  value={portion}
-                  onChange={(event) => setPortion(event.target.value)}
-                  className='mt-2 w-full rounded-lg border border-primary/10 bg-surface px-4 py-3 font-body text-body text-text outline-none'
-                />
-              </div>
-
-              {calculated && (
-                <div className='grid grid-cols-2 gap-3 rounded-lg bg-background p-4 sm:grid-cols-3'>
-                  <span className='font-body text-body-sm'>
-                    {Math.round(calculated.calories)} kkal
-                  </span>
-                  <span className='font-body text-body-sm'>
-                    P {calculated.protein.toFixed(1)}g
-                  </span>
-                  <span className='font-body text-body-sm'>
-                    K {calculated.carbs.toFixed(1)}g
-                  </span>
-                  <span className='font-body text-body-sm'>
-                    L {calculated.fat.toFixed(1)}g
-                  </span>
-                  <span className='font-body text-body-sm'>
-                    G {calculated.sugar.toFixed(1)}g
-                  </span>
-                  <span className='font-body text-body-sm'>
-                    Serat {calculated.fiber.toFixed(1)}g
-                  </span>
-                </div>
-              )}
-
-              <p className='font-body text-body-sm text-text'>
-                Pilih meal plan di daftar bawah untuk menentukan tempat makanan
-                ini disimpan.
-              </p>
-            </div>
-          </Card>
-        </div>
-
-        <Card className='mt-6 p-5 sm:p-6'>
-          <h2 className='font-heading text-heading-lg font-bold text-text'>
-            Makanan Custom
-          </h2>
-          <p className='mt-1 font-body text-body-sm text-text'>
-            Gunakan bagian ini untuk makanan yang tidak tersedia di master data.
-          </p>
-
-          <div className='mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
-            {Object.entries({
-              food_name_custom: 'Nama Makanan',
-              portion_g: 'Porsi (gram)',
-              calculated_calories: 'Kalori',
-              calculated_protein: 'Protein',
-              calculated_carbs: 'Karbohidrat',
-              calculated_fat: 'Lemak',
-              calculated_sugar: 'Gula',
-              calculated_fiber: 'Serat',
-            }).map(([name, label]) => (
-              <div key={name}>
-                <label className='block font-body text-body-sm font-semibold text-text'>
-                  {label}
-                </label>
-                <input
-                  name={name}
-                  type={name === 'food_name_custom' ? 'text' : 'number'}
-                  value={customForm[name]}
-                  onChange={(event) =>
-                    setCustomForm((current) => ({
-                      ...current,
-                      [name]: event.target.value,
-                    }))
-                  }
-                  className='mt-2 w-full rounded-lg border border-primary/10 bg-surface px-4 py-3 font-body text-body text-text outline-none'
-                />
-              </div>
-            ))}
+            )}
           </div>
-        </Card>
-
-        <Card className='mt-6 p-5 sm:p-6'>
-          <h2 className='font-heading text-heading-lg font-bold text-text'>
-            Meal Plan {date}
-          </h2>
 
           {message && (
             <p className='mt-4 font-body text-body-sm text-text'>{message}</p>
           )}
 
-          {loading ? (
-            <p className='mt-6 font-body text-body text-text'>
-              Memuat meal plan...
-            </p>
-          ) : plans.length === 0 ? (
-            <div className='mt-6 rounded-lg bg-background px-4 py-6 text-center'>
-              <p className='font-body text-body text-text'>
-                Belum ada meal plan untuk tanggal ini.
-              </p>
-            </div>
-          ) : (
-            <div className='mt-6 space-y-4'>
-              {plans.map((plan, index) => {
-                const mealPlanId = plan.id || plan.mealPlanId;
-                const details = Array.isArray(plan.details)
-                  ? plan.details
-                  : Array.isArray(plan.items)
-                    ? plan.items
-                    : [];
+          {/* FORM BUAT MEAL PLAN */}
+          {showMealForm && (
+            <Card className='mt-5 p-5 sm:p-6'>
+              <h3 className='font-heading text-heading-lg font-bold text-text'>
+                Buat Meal Plan
+              </h3>
 
-                return (
-                  <div
-                    key={mealPlanId || index}
-                    className='rounded-lg bg-background p-4'
+              <form
+                onSubmit={handleCreateMealPlan}
+                className='mt-5 grid gap-4 sm:grid-cols-2'
+              >
+                <div>
+                  <label className='block font-body text-body-sm font-semibold text-text'>
+                    Waktu Makan
+                  </label>
+
+                  <select
+                    value={mealForm.meal_type}
+                    onChange={(event) =>
+                      setMealForm((current) => ({
+                        ...current,
+                        meal_type: event.target.value,
+                      }))
+                    }
+                    className='mt-2 w-full rounded-lg border border-primary/10 bg-surface px-4 py-3 font-body text-body text-text outline-none'
                   >
-                    <div className='flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
-                      <div>
-                        <p className='font-heading text-lg font-semibold text-text'>
-                          {plan.mealType || plan.meal_type || 'Waktu Makan'}
-                        </p>
-                        <p className='mt-1 font-body text-body-sm text-text'>
-                          Target:{' '}
-                          {plan.targetCalories ?? plan.target_calories ?? '-'}{' '}
-                          kkal
-                        </p>
+                    <option value='breakfast'>Sarapan</option>
+
+                    <option value='lunch'>Makan Siang</option>
+
+                    <option value='dinner'>Makan Malam</option>
+
+                    <option value='snack'>Snack</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className='block font-body text-body-sm font-semibold text-text'>
+                    Target Kalori
+                  </label>
+
+                  <input
+                    type='number'
+                    min='0'
+                    value={mealForm.target_calories}
+                    onChange={(event) =>
+                      setMealForm((current) => ({
+                        ...current,
+                        target_calories: event.target.value,
+                      }))
+                    }
+                    className='mt-2 w-full rounded-lg border border-primary/10 bg-surface px-4 py-3 font-body text-body text-text outline-none'
+                  />
+                </div>
+
+                <div className='sm:col-span-2'>
+                  <button
+                    type='submit'
+                    disabled={saving}
+                    className='rounded-lg bg-accent px-5 py-3 font-body text-body-sm font-semibold text-white disabled:opacity-60'
+                  >
+                    {saving ? 'Menyimpan...' : 'Simpan Meal Plan'}
+                  </button>
+                </div>
+              </form>
+            </Card>
+          )}
+
+          {/* FORM TAMBAH MAKANAN */}
+          {showFoodForm && (
+            <Card className='mt-5 p-5 sm:p-6'>
+              <h3 className='font-heading text-heading-lg font-bold text-text'>
+                Tambahkan Makanan
+              </h3>
+
+              <form onSubmit={handleAddFood} className='mt-5 space-y-4'>
+                <div>
+                  <label className='block font-body text-body-sm font-semibold text-text'>
+                    Meal Plan
+                  </label>
+
+                  <select
+                    value={selectedMealPlanId}
+                    onChange={(event) =>
+                      setSelectedMealPlanId(event.target.value)
+                    }
+                    className='mt-2 w-full rounded-lg border border-primary/10 bg-surface px-4 py-3 font-body text-body text-text outline-none'
+                  >
+                    <option value=''>Pilih meal plan</option>
+
+                    {plans.map((plan) => {
+                      const mealPlanId = plan.id || plan.mealPlanId;
+
+                      const mealType =
+                        plan.mealType || plan.meal_type || 'Waktu Makan';
+
+                      return (
+                        <option key={mealPlanId} value={mealPlanId}>
+                          {mealType}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className='block font-body text-body-sm font-semibold text-text'>
+                    Makanan
+                  </label>
+
+                  <select
+                    value={selectedFood?.id || ''}
+                    onChange={(event) => {
+                      const id = event.target.value;
+
+                      const food =
+                        foods.find((item) => String(item.id) === String(id)) ||
+                        null;
+
+                      setSelectedFood(food);
+                    }}
+                    className='mt-2 w-full rounded-lg border border-primary/10 bg-surface px-4 py-3 font-body text-body text-text outline-none'
+                  >
+                    <option value=''>Pilih makanan</option>
+
+                    {foods.map((food) => (
+                      <option key={food.id} value={food.id}>
+                        {food.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className='block font-body text-body-sm font-semibold text-text'>
+                    Porsi (gram)
+                  </label>
+
+                  <input
+                    type='number'
+                    min='1'
+                    value={portion}
+                    onChange={(event) => setPortion(event.target.value)}
+                    className='mt-2 w-full rounded-lg border border-primary/10 bg-surface px-4 py-3 font-body text-body text-text outline-none'
+                  />
+                </div>
+
+                {calculated && (
+                  <div className='grid gap-3 rounded-lg bg-background p-4 sm:grid-cols-3'>
+                    <p className='font-body text-body-sm text-text'>
+                      {Math.round(calculated.calories)} kkal
+                    </p>
+
+                    <p className='font-body text-body-sm text-text'>
+                      Protein {calculated.protein.toFixed(1)} g
+                    </p>
+
+                    <p className='font-body text-body-sm text-text'>
+                      Karbohidrat {calculated.carbs.toFixed(1)} g
+                    </p>
+
+                    <p className='font-body text-body-sm text-text'>
+                      Lemak {calculated.fat.toFixed(1)} g
+                    </p>
+
+                    <p className='font-body text-body-sm text-text'>
+                      Gula {calculated.sugar.toFixed(1)} g
+                    </p>
+
+                    <p className='font-body text-body-sm text-text'>
+                      Serat {calculated.fiber.toFixed(1)} g
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  type='submit'
+                  disabled={saving || !selectedFood || !selectedMealPlanId}
+                  className='rounded-lg bg-primary px-5 py-3 font-body text-body-sm font-semibold text-white disabled:opacity-50'
+                >
+                  {saving ? 'Menyimpan...' : 'Simpan Makanan'}
+                </button>
+              </form>
+            </Card>
+          )}
+
+          {/* DAFTAR MEAL PLAN */}
+          <div className='mt-6'>
+            {loading ? (
+              <Card className='p-6'>
+                <p className='font-body text-body text-text'>
+                  Memuat meal plan...
+                </p>
+              </Card>
+            ) : plans.length === 0 ? (
+              <Card className='p-6 text-center'>
+                <p className='font-body text-body text-text'>
+                  Belum ada meal plan untuk tanggal ini.
+                </p>
+              </Card>
+            ) : (
+              <div className='space-y-4'>
+                {plans.map((plan, index) => {
+                  const mealPlanId = plan.id || plan.mealPlanId;
+
+                  const mealType =
+                    plan.mealType || plan.meal_type || 'Waktu Makan';
+
+                  const target =
+                    plan.targetCalories ?? plan.target_calories ?? '-';
+
+                  const details = Array.isArray(plan.details)
+                    ? plan.details
+                    : Array.isArray(plan.items)
+                      ? plan.items
+                      : [];
+
+                  return (
+                    <Card key={mealPlanId || index} className='p-5 sm:p-6'>
+                      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                        <div>
+                          <h3 className='font-heading text-xl font-semibold text-text'>
+                            {mealType}
+                          </h3>
+
+                          <p className='mt-1 font-body text-body-sm text-text'>
+                            Target {target} kkal
+                          </p>
+                        </div>
+
+                        <button
+                          type='button'
+                          onClick={() => {
+                            setSelectedMealPlanId(String(mealPlanId));
+
+                            setShowFoodForm(true);
+                            setShowMealForm(false);
+                          }}
+                          className='rounded-lg bg-primary px-4 py-2.5 font-body text-body-sm font-semibold text-white'
+                        >
+                          Tambahkan Makanan
+                        </button>
                       </div>
 
-                      {mealPlanId && (
-                        <div className='flex flex-wrap gap-2'>
-                          <button
-                            type='button'
-                            onClick={() => handleAddFood(mealPlanId)}
-                            disabled={saving || !selectedFood}
-                            className='rounded-lg bg-primary px-4 py-2.5 font-body text-body-sm font-semibold text-white disabled:opacity-50'
-                          >
-                            Tambah Makanan Terpilih
-                          </button>
-                          <button
-                            type='button'
-                            onClick={() => handleAddCustom(mealPlanId)}
-                            disabled={saving}
-                            className='rounded-lg bg-accent px-4 py-2.5 font-body text-body-sm font-semibold text-white disabled:opacity-50'
-                          >
-                            Tambah Custom
-                          </button>
+                      {details.length === 0 ? (
+                        <p className='mt-5 font-body text-body-sm text-text'>
+                          Belum ada makanan pada meal plan ini.
+                        </p>
+                      ) : (
+                        <div className='mt-5 space-y-2'>
+                          {details.map((detail, detailIndex) => (
+                            <div
+                              key={detail.id || detailIndex}
+                              className='rounded-lg bg-background p-4'
+                            >
+                              <p className='font-body text-body-sm font-semibold text-text'>
+                                {detail.foodName ||
+                                  detail.food_name_custom ||
+                                  detail.name ||
+                                  'Makanan'}
+                              </p>
+
+                              <p className='mt-1 font-body text-body-sm text-text'>
+                                {detail.portionG ?? detail.portion_g ?? '-'} g ·{' '}
+                                {detail.calculatedCalories ??
+                                  detail.calculated_calories ??
+                                  '-'}{' '}
+                                kkal
+                              </p>
+                            </div>
+                          ))}
                         </div>
                       )}
-                    </div>
-
-                    {details.length > 0 && (
-                      <div className='mt-4 space-y-2'>
-                        {details.map((detail, detailIndex) => (
-                          <div
-                            key={detail.id || detailIndex}
-                            className='rounded-lg bg-surface p-3 shadow-sm'
-                          >
-                            <p className='font-body text-body-sm font-semibold text-text'>
-                              {detail.foodName ||
-                                detail.food_name_custom ||
-                                detail.name ||
-                                'Makanan'}
-                            </p>
-                            <p className='mt-1 font-body text-[13px] text-text'>
-                              {detail.portionG ?? detail.portion_g ?? '-'} g ·{' '}
-                              {detail.calculatedCalories ??
-                                detail.calculated_calories ??
-                                '-'}{' '}
-                              kkal
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Card>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
       </div>
+
+      {selectedRecommendation && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-5'>
+          <Card className='w-full max-w-md p-6'>
+            <div className='flex items-start justify-between gap-4'>
+              <div>
+                <h2 className='font-heading text-heading-lg font-bold text-text'>
+                  {selectedRecommendation.name}
+                </h2>
+
+                <p className='mt-1 font-body text-body-sm text-text'>
+                  {selectedRecommendation.category}
+                </p>
+              </div>
+
+              <button
+                type='button'
+                onClick={() => setSelectedRecommendation(null)}
+                className='font-body text-xl leading-none text-text'
+                aria-label='Tutup detail makanan'
+              >
+                ×
+              </button>
+            </div>
+
+            <div className='mt-6 space-y-3'>
+              <div className='flex items-center justify-between gap-4'>
+                <span className='font-body text-body-sm text-text'>
+                  Ukuran Porsi
+                </span>
+
+                <span className='font-body text-body-sm font-semibold text-text'>
+                  {selectedRecommendation.servingSizeG ??
+                    selectedRecommendation.serving_size_g ??
+                    0}{' '}
+                  g
+                </span>
+              </div>
+
+              <div className='flex items-center justify-between gap-4'>
+                <span className='font-body text-body-sm text-text'>Kalori</span>
+
+                <span className='font-body text-body-sm font-semibold text-text'>
+                  {selectedRecommendation.calories ?? 0} kkal
+                </span>
+              </div>
+
+              <div className='flex items-center justify-between gap-4'>
+                <span className='font-body text-body-sm text-text'>
+                  Protein
+                </span>
+
+                <span className='font-body text-body-sm font-semibold text-text'>
+                  {selectedRecommendation.proteinG ??
+                    selectedRecommendation.protein_g ??
+                    0}{' '}
+                  g
+                </span>
+              </div>
+
+              <div className='flex items-center justify-between gap-4'>
+                <span className='font-body text-body-sm text-text'>
+                  Karbohidrat
+                </span>
+
+                <span className='font-body text-body-sm font-semibold text-text'>
+                  {selectedRecommendation.carbsG ??
+                    selectedRecommendation.carbs_g ??
+                    0}{' '}
+                  g
+                </span>
+              </div>
+
+              <div className='flex items-center justify-between gap-4'>
+                <span className='font-body text-body-sm text-text'>Lemak</span>
+
+                <span className='font-body text-body-sm font-semibold text-text'>
+                  {selectedRecommendation.fatG ??
+                    selectedRecommendation.fat_g ??
+                    0}{' '}
+                  g
+                </span>
+              </div>
+
+              <div className='flex items-center justify-between gap-4'>
+                <span className='font-body text-body-sm text-text'>Gula</span>
+
+                <span className='font-body text-body-sm font-semibold text-text'>
+                  {selectedRecommendation.sugarG ??
+                    selectedRecommendation.sugar_g ??
+                    0}{' '}
+                  g
+                </span>
+              </div>
+
+              <div className='flex items-center justify-between gap-4'>
+                <span className='font-body text-body-sm text-text'>Serat</span>
+
+                <span className='font-body text-body-sm font-semibold text-text'>
+                  {selectedRecommendation.fiberG ??
+                    selectedRecommendation.fiber_g ??
+                    0}{' '}
+                  g
+                </span>
+              </div>
+            </div>
+
+            <button
+              type='button'
+              onClick={() => setSelectedRecommendation(null)}
+              className='mt-6 w-full rounded-lg bg-primary px-4 py-3 font-body text-body-sm font-semibold text-white transition hover:opacity-90'
+            >
+              Tutup
+            </button>
+          </Card>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

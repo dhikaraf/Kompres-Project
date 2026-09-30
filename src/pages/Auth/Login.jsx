@@ -28,8 +28,6 @@ export default function Login() {
     general: '',
   });
 
-  const [rememberMe, setRememberMe] = useState(false);
-
   const [loading, setLoading] = useState(false);
 
   const handleChange = (event) => {
@@ -72,50 +70,58 @@ export default function Login() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    const isValid = validateForm();
-
-    if (!isValid) {
+    if (!validateForm()) {
       return;
     }
 
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const result = await login({
-      email: formData.email.trim(),
-      password: formData.password,
-    });
+      const result = await login({
+        email: formData.email.trim(),
+        password: formData.password,
+      });
 
-    if (!result.success) {
+      if (!result?.success) {
+        setErrors((current) => ({
+          ...current,
+          general:
+            result?.message ||
+            'Email atau kata sandi yang Anda masukkan salah.',
+        }));
+
+        return;
+      }
+
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Gagal login:', error);
+
       setErrors((current) => ({
         ...current,
-        general: result.message,
+        general:
+          error.response?.data?.message || 'Login gagal. Silakan coba lagi.',
       }));
-
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setLoading(false);
-
-    navigate('/dashboard');
   };
 
   return (
     <AuthLayout>
       <Card className='w-full max-w-[400px] px-8 py-10 sm:px-10'>
-        {/* Header */}
         <div className='text-center'>
           <h1 className='font-heading text-heading-lg font-bold text-text'>
             Selamat Datang Kembali
           </h1>
 
           <p className='mx-auto mt-4 max-w-[300px] font-body text-body leading-snug text-text'>
-            Masukkan kredensial Anda untuk melanjutkan perjalanan kebugaran Anda
+            Masukkan kredensial Anda untuk melanjutkan perjalanan kebugaran
+            Anda.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} noValidate className='mt-9'>
-          {/* Email */}
           <InputField
             id='email'
             label='Email'
@@ -129,7 +135,6 @@ export default function Login() {
             disabled={loading}
           />
 
-          {/* Kata Sandi */}
           <div className='mt-8'>
             <InputField
               id='password'
@@ -145,45 +150,17 @@ export default function Login() {
             />
           </div>
 
-          {/* Ingat Saya + Lupa Kata Sandi */}
-          <div className='mt-8 flex items-center justify-between gap-4'>
-            <label
-              className={`flex items-center gap-2 ${
-                loading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-              }`}
-            >
-              <input
-                type='checkbox'
-                checked={rememberMe}
-                onChange={(event) => setRememberMe(event.target.checked)}
-                disabled={loading}
-                className='h-4 w-4 cursor-pointer accent-primary'
-              />
-
-              <span className='font-body text-body-sm text-text'>
-                Ingat Saya
-              </span>
-            </label>
-
-            <button
-              type='button'
-              disabled={loading}
-              className='font-body text-body-sm font-semibold text-text transition hover:text-primary disabled:cursor-not-allowed disabled:opacity-60'
-            >
-              Lupa Kata Sandi?
-            </button>
-          </div>
-
-          {/* Error Login */}
           {errors.general && (
-            <div role='alert' className='mt-4 rounded-lg bg-red-50 px-3 py-2'>
-              <p className='font-body text-body-sm text-red-600'>
+            <div
+              role='alert'
+              className='mt-5 rounded-lg bg-accent/10 px-4 py-3'
+            >
+              <p className='font-body text-body-sm text-accent'>
                 {errors.general}
               </p>
             </div>
           )}
 
-          {/* Tombol Masuk */}
           <Button
             type='submit'
             variant='accent'
@@ -194,7 +171,6 @@ export default function Login() {
           </Button>
         </form>
 
-        {/* Daftar */}
         <p className='mt-7 text-center font-body text-body-sm text-text'>
           Belum memiliki akun?{' '}
           <Link
